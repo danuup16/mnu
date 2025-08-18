@@ -1594,10 +1594,10 @@ function RayfieldLibrary:CreateWindow(Settings)
 	if Rayfield:FindFirstChild('Loading') then
 		if getgenv and not getgenv().rayfieldCached then
 			Rayfield.Enabled = true
-			Rayfield.Loading.Visible = true
+			-- Rayfield.Loading.Visible = true
 
-			task.wait(1.4)
-			Rayfield.Loading.Visible = false
+			-- task.wait(1.4)
+			-- Rayfield.Loading.Visible = false
 		end
 	end
 
@@ -3772,10 +3772,10 @@ function RayfieldLibrary:LoadConfiguration()
 		end)
 
 		if success and loaded and not notified then
-			RayfieldLibrary:Notify({Title = "#DJSSTORE", Content = "Config loaded", Image = 4384403532})
+			--RayfieldLibrary:Notify({Title = "#DJSSTORE", Content = "Config loaded", Image = 4384403532})
 		elseif not success and not notified then
 			warn('#DJSSTORE Error | '..tostring(result))
-			RayfieldLibrary:Notify({Title = "#DJSSTORE", Content = "Config loaded", Image = 4384402990})
+			--RayfieldLibrary:Notify({Title = "#DJSSTORE", Content = "Config loaded", Image = 4384402990})
 		end
 	end
 
