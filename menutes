@@ -949,106 +949,68 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 end
 local function makeDraggablePrompt(object, dragObject)
 	print("=== DEBUG: makeDraggablePrompt called ===")
-	print("Object:", object)
-	print("DragObject:", dragObject)
-	print("Object Name:", object.Name)
-	print("DragObject Name:", dragObject.Name)
-	print("Object Position:", object.Position)
-	print("Object Size:", object.Size)
-	print("Object Visible:", object.Visible)
-	print("DragObject Visible:", dragObject.Visible)
+	print("Object:", object.Name)
+	print("DragObject:", dragObject.Name)
 	
 	local dragging = false
 	local relative = nil
 	local offset = Vector2.zero
 	local screenGui = object:FindFirstAncestorWhichIsA("ScreenGui")
 	
-	print("ScreenGui found:", screenGui)
-	
 	if screenGui and screenGui.IgnoreGuiInset then
 		offset += getService('GuiService'):GetGuiInset()
-		print("GuiInset offset applied:", offset)
 	end
 
-	-- Test if dragObject exists and has the right properties
-	if not dragObject then
-		warn("DEBUG: dragObject is nil!")
-		return
-	end
-	
-	if not object then
-		warn("DEBUG: object is nil!")
-		return
+	-- Pastikan dragObject bisa menerima input
+	if dragObject.ClassName == "ImageButton" then
+		dragObject.Active = true
 	end
 
-	print("=== Setting up InputBegan connection ===")
+	print("=== Setting up Mouse Events (FIXED) ===")
 	
-	local inputBeganConnection = dragObject.InputBegan:Connect(function(input, processed)
-		print("DEBUG: InputBegan triggered")
-		print("Input Type:", input.UserInputType.Name)
-		print("Processed:", processed)
+	-- GUNAKAN MouseButton1Down instead of InputBegan
+	local mouseDownConnection = dragObject.MouseButton1Down:Connect(function()
+		print("DEBUG: MouseButton1Down triggered - Starting drag")
+		dragging = true
 		
-		if processed then 
-			print("DEBUG: Input was processed, returning")
-			return 
-		end
-
-		local inputType = input.UserInputType.Name
-		if inputType == "MouseButton1" or inputType == "Touch" then
-			print("DEBUG: Valid input type detected, starting drag")
-			dragging = true
-			local mousePos = UserInputService:GetMouseLocation()
-			local objPos = object.AbsolutePosition + object.AbsoluteSize * object.AnchorPoint
-			relative = objPos - mousePos
-			
-			print("DEBUG: Mouse Position:", mousePos)
-			print("DEBUG: Object Position:", objPos)
-			print("DEBUG: Relative:", relative)
-			print("DEBUG: Dragging set to true")
-		else
-			print("DEBUG: Invalid input type:", inputType)
-		end
+		local mousePos = UserInputService:GetMouseLocation()
+		local objPos = object.AbsolutePosition + object.AbsoluteSize * object.AnchorPoint
+		relative = objPos - mousePos
+		
+		print("DEBUG: Mouse Position:", mousePos)
+		print("DEBUG: Object Position:", objPos)
+		print("DEBUG: Relative:", relative)
+		print("DEBUG: Dragging set to:", dragging)
 	end)
 
-	local inputEnded = UserInputService.InputEnded:Connect(function(input)
-		print("DEBUG: InputEnded triggered")
-		print("Currently dragging:", dragging)
-		
-		if not dragging then 
-			print("DEBUG: Not dragging, returning")
-			return 
-		end
-
-		local inputType = input.UserInputType.Name
-		print("DEBUG: Input type on end:", inputType)
-		
-		if inputType == "MouseButton1" or inputType == "Touch" then
-			print("DEBUG: Stopping drag")
+	-- GUNAKAN UserInputService untuk mouse release (global)
+	local inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+			print("DEBUG: Mouse released - Stopping drag")
 			dragging = false
 		end
 	end)
 
-	local renderStepped = RunService.RenderStepped:Connect(function()
-		if dragging then
-			print("DEBUG: RenderStepped - dragging active")
+	-- GUNAKAN UserInputService untuk mouse movement (global)
+	local inputChangedConnection = UserInputService.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+			print("DEBUG: Mouse moving while dragging")
 			local mousePos = UserInputService:GetMouseLocation()
 			local newPosition = mousePos + relative + offset
 			
-			print("DEBUG: Mouse pos:", mousePos)
 			print("DEBUG: New position:", newPosition)
-			print("DEBUG: Setting object position to:", UDim2.fromOffset(newPosition.X, newPosition.Y))
-			
 			object.Position = UDim2.fromOffset(newPosition.X, newPosition.Y)
 		end
 	end)
 
-	print("=== All connections set up successfully ===")
+	print("=== All connections set up successfully (FIXED) ===")
 
+	-- Cleanup connections
 	object.Destroying:Connect(function()
-		print("DEBUG: Object destroying, cleaning up connections")
-		if inputBeganConnection then inputBeganConnection:Disconnect() end
-		if inputEnded then inputEnded:Disconnect() end
-		if renderStepped then renderStepped:Disconnect() end
+		print("DEBUG: Cleaning up connections")
+		if mouseDownConnection then mouseDownConnection:Disconnect() end
+		if inputEndedConnection then inputEndedConnection:Disconnect() end
+		if inputChangedConnection then inputChangedConnection:Disconnect() end
 	end)
 end
 
@@ -1777,7 +1739,7 @@ function RayfieldLibrary:CreateWindow(Settings)
 	LoadingFrame.Subtitle.TextTransparency = 1
 
 	if Settings.ShowImage then
-	print("=== DEBUG: Creating ShowImage ===")
+	print("=== DEBUG: Creating ShowImage (FIXED) ===")
 	
 	-- Ganti text dengan image
 	MPrompt.Title.Visible = false -- Sembunyikan text
@@ -1792,45 +1754,54 @@ function RayfieldLibrary:CreateWindow(Settings)
 	LogoButton.Image = Settings.ShowImage or "rbxassetid://125307367032337"
 	LogoButton.ImageTransparency = 1 -- Mulai transparan
 	
-	print("DEBUG: LogoButton created:", LogoButton)
-	print("DEBUG: LogoButton Parent:", LogoButton.Parent)
-	print("DEBUG: MPrompt:", MPrompt)
-	print("DEBUG: MPrompt Visible:", MPrompt.Visible)
-	print("DEBUG: MPrompt Position:", MPrompt.Position)
-	print("DEBUG: MPrompt Size:", MPrompt.Size)
+	-- PENTING: Set Active dan ZIndex
+	LogoButton.Active = true
+	LogoButton.ZIndex = 10
+	MPrompt.ZIndex = 100
+	
+	print("DEBUG: LogoButton Active:", LogoButton.Active)
+	print("DEBUG: LogoButton ZIndex:", LogoButton.ZIndex)
+	print("DEBUG: MPrompt ZIndex:", MPrompt.ZIndex)
 	
 	-- Tambahkan UIAspectRatioConstraint agar logo tidak pecah
 	local AspectRatio = Instance.new("UIAspectRatioConstraint")
 	AspectRatio.Parent = LogoButton
-	AspectRatio.AspectRatio = 1 -- Square ratio, sesuaikan jika perlu
+	AspectRatio.AspectRatio = 1
 	
-	-- Connect click event
+	-- Connect click event (dengan priority check)
+	local clickDebounce = false
 	LogoButton.MouseButton1Click:Connect(function()
 		print("DEBUG: LogoButton clicked")
-		if Debounce then return end
-		if Hidden then
-			Hidden = false
-			Unhide()
+		if clickDebounce then return end
+		clickDebounce = true
+		
+		task.wait(0.1) -- Small delay to differentiate from drag
+		
+		if not dragging and Debounce == false then
+			if Hidden then
+				Hidden = false
+				Unhide()
+			end
 		end
+		
+		clickDebounce = false
 	end)
 	
-	-- Test basic input detection
-	LogoButton.InputBegan:Connect(function(input, processed)
-		print("DEBUG: LogoButton InputBegan test - Type:", input.UserInputType.Name, "Processed:", processed)
-	end)
-	
-	print("=== DEBUG: About to call makeDraggablePrompt ===")
-	-- TAMBAHAN: Buat MPrompt bisa di-drag
+	print("=== DEBUG: About to call makeDraggablePrompt (FIXED) ===")
 	makeDraggablePrompt(MPrompt, LogoButton)
 	
 elseif Settings.ShowText then
-	print("=== DEBUG: Creating ShowText ===")
-	MPrompt.Title.Text = 'Show Ui'..Settings.ShowText -- fallback ke text
+	print("=== DEBUG: Creating ShowText (FIXED) ===")
+	MPrompt.Title.Text = 'Show Ui'..Settings.ShowText
 	
-	print("=== DEBUG: About to call makeDraggablePrompt for text ===")
-	-- TAMBAHAN: Buat MPrompt dengan text juga bisa di-drag
+	-- Set properties untuk text version
+	MPrompt.Active = true
+	MPrompt.ZIndex = 100
+	
+	print("=== DEBUG: About to call makeDraggablePrompt for text (FIXED) ===")
 	makeDraggablePrompt(MPrompt, MPrompt)
 end
+
 
 
 
