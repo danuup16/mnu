@@ -1459,6 +1459,15 @@ if MPrompt then
 			task.wait(0.5)
 			MPrompt.Visible = false
 		end)
+		task.spawn(function()
+    while MPrompt and MPrompt.Parent do
+        MPrompt.BackgroundTransparency = 1
+        if MPrompt:FindFirstChild("LogoButton") then
+            MPrompt.LogoButton.BackgroundTransparency = 1
+        end
+        task.wait(0.1)
+    end
+end)
 	end
 
 
