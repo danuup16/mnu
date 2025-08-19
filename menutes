@@ -947,7 +947,7 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 		if renderStepped then renderStepped:Disconnect() end
 	end)
 end
-local savedPromptPosition = UDim2.new(0, 693, 0, 62) -- Default position
+local savedPromptPosition = UDim2.new(0.7, 0, 0, 20) -- Default position
 
 local function makeDraggablePrompt(object, dragObject)
 	print("=== DEBUG: makeDraggablePrompt called ===")
