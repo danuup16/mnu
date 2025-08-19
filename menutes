@@ -948,20 +948,27 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 	end)
 end
 local currentPromptPosition = nil
+local dragging = false
 
--- Modifikasi fungsi makeDraggablePrompt untuk menyimpan posisi dalam memori
+-- Modifikasi fungsi makeDraggablePrompt yang sudah ada
 local function makeDraggablePrompt(object, dragObject)
+	if not object or not dragObject then 
+		warn("makeDraggablePrompt: object or dragObject is nil")
+		return 
+	end
+	
 	print("=== DEBUG: makeDraggablePrompt called ===")
 	print("Object:", object.Name)
 	print("DragObject:", dragObject.Name)
 	
-	local dragging = false
+	local isDragging = false
 	local relative = nil
 	local offset = Vector2.zero
 	local screenGui = object:FindFirstAncestorWhichIsA("ScreenGui")
 	
 	if screenGui and screenGui.IgnoreGuiInset then
-		offset += getService('GuiService'):GetGuiInset()
+		local GuiService = game:GetService("GuiService")
+		offset += GuiService:GetGuiInset()
 	end
 
 	-- Pastikan dragObject bisa menerima input
@@ -969,55 +976,66 @@ local function makeDraggablePrompt(object, dragObject)
 		dragObject.Active = true
 	end
 
-	print("=== Setting up Mouse Events (FIXED) ===")
+	print("=== Setting up Mouse Events ===")
 	
-	-- GUNAKAN MouseButton1Down instead of InputBegan
-	local mouseDownConnection = dragObject.MouseButton1Down:Connect(function()
-		print("DEBUG: MouseButton1Down triggered - Starting drag")
-		dragging = true
-		
-		local mousePos = UserInputService:GetMouseLocation()
-		local objPos = object.AbsolutePosition + object.AbsoluteSize * object.AnchorPoint
-		relative = objPos - mousePos
-		
-		print("DEBUG: Mouse Position:", mousePos)
-		print("DEBUG: Object Position:", objPos)
-		print("DEBUG: Relative:", relative)
-		print("DEBUG: Dragging set to:", dragging)
-	end)
+	-- Mouse down event
+	local mouseDownConnection
+	if dragObject.MouseButton1Down then
+		mouseDownConnection = dragObject.MouseButton1Down:Connect(function()
+			print("DEBUG: MouseButton1Down triggered - Starting drag")
+			isDragging = true
+			dragging = true -- Set global dragging variable
+			
+			local mousePos = UserInputService:GetMouseLocation()
+			local objPos = object.AbsolutePosition + object.AbsoluteSize * object.AnchorPoint
+			relative = objPos - mousePos
+			
+			print("DEBUG: Mouse Position:", mousePos)
+			print("DEBUG: Object Position:", objPos)
+			print("DEBUG: Relative:", relative)
+		end)
+	end
 
-	-- GUNAKAN UserInputService untuk mouse release (global)
+	-- Mouse release event (global)
 	local inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+		if input.UserInputType == Enum.UserInputType.MouseButton1 and isDragging then
 			print("DEBUG: Mouse released - Stopping drag")
-			dragging = false
+			isDragging = false
+			dragging = false -- Reset global dragging variable
 			-- SIMPAN POSISI SAAT INI DALAM MEMORI
 			currentPromptPosition = object.Position
 			print("DEBUG: Position saved in memory:", currentPromptPosition)
 		end
 	end)
 
-	-- GUNAKAN UserInputService untuk mouse movement (global)
+	-- Mouse movement event (global)
 	local inputChangedConnection = UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-			print("DEBUG: Mouse moving while dragging")
-			local mousePos = UserInputService:GetMouseLocation()
-			local newPosition = mousePos + relative + offset
-			
-			print("DEBUG: New position:", newPosition)
-			object.Position = UDim2.fromOffset(newPosition.X, newPosition.Y)
+		if input.UserInputType == Enum.UserInputType.MouseMovement and isDragging then
+			if relative then
+				local mousePos = UserInputService:GetMouseLocation()
+				local newPosition = mousePos + relative + offset
+				
+				object.Position = UDim2.fromOffset(newPosition.X, newPosition.Y)
+			end
 		end
 	end)
 
-	print("=== All connections set up successfully (FIXED) ===")
+	print("=== All connections set up successfully ===")
 
 	-- Cleanup connections
-	object.Destroying:Connect(function()
+	local function cleanup()
 		print("DEBUG: Cleaning up connections")
 		if mouseDownConnection then mouseDownConnection:Disconnect() end
 		if inputEndedConnection then inputEndedConnection:Disconnect() end
 		if inputChangedConnection then inputChangedConnection:Disconnect() end
-	end)
+	end
+	
+	if object.Destroying then
+		object.Destroying:Connect(cleanup)
+	end
+	
+	-- Return cleanup function in case needed
+	return cleanup
 end
 
 
@@ -1272,7 +1290,7 @@ local function closeSearch()
 	Main.Search.Input.Interactable = false
 end
 
-local function Hide(notify: boolean?)
+local function Hide(notify)
 	if MPrompt then
 		MPrompt.Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 		
@@ -1294,20 +1312,32 @@ local function Hide(notify: boolean?)
 		end
 		MPrompt.Visible = true
 	end
-	task.spawn(closeSearch)
+	
+	if closeSearch then
+		task.spawn(closeSearch)
+	end
 
 	Debounce = true
 
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 0)}):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 45)}):Play()
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main.Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-	TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+	-- Animasi hide menu
+	if Main then
+		TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 0)}):Play()
+		TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 45)}):Play()
+		TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+		TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+		TweenService:Create(Main.Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+		TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+		TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+		TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+	end
+	
+	if Topbar then
+		TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+	end
+	
+	if dragBarCosmetic then
+		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+	end
 
 	if useMobilePrompt and MPrompt then
 		if MPrompt:FindFirstChild("LogoButton") then
@@ -1321,40 +1351,51 @@ local function Hide(notify: boolean?)
 		end
 	end
 
-	for _, TopbarButton in ipairs(Topbar:GetChildren()) do
-		if TopbarButton.ClassName == "ImageButton" then
-			TweenService:Create(TopbarButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+	-- Hide topbar buttons
+	if Topbar then
+		for _, TopbarButton in ipairs(Topbar:GetChildren()) do
+			if TopbarButton.ClassName == "ImageButton" then
+				TweenService:Create(TopbarButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+			end
 		end
 	end
 
-	for _, tabbtn in ipairs(TabList:GetChildren()) do
-		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
-			TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-			TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-			TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-			TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+	-- Hide tab buttons
+	if TabList then
+		for _, tabbtn in ipairs(TabList:GetChildren()) do
+			if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
+				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+			end
 		end
 	end
 
-	dragInteract.Visible = false
+	if dragInteract then
+		dragInteract.Visible = false
+	end
 
-	for _, tab in ipairs(Elements:GetChildren()) do
-		if tab.Name ~= "Template" and tab.ClassName == "ScrollingFrame" and tab.Name ~= "Placeholder" then
-			for _, element in ipairs(tab:GetChildren()) do
-				if element.ClassName == "Frame" then
-					if element.Name ~= "SectionSpacing" and element.Name ~= "Placeholder" then
-						if element.Name == "SectionTitle" or element.Name == 'SearchTitle-fsefsefesfsefesfesfThanks' then
-							TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-						elseif element.Name == 'Divider' then
-							TweenService:Create(element.Divider, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-						else
-							TweenService:Create(element, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-							TweenService:Create(element.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-							TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-						end
-						for _, child in ipairs(element:GetChildren()) do
-							if child.ClassName == "Frame" or child.ClassName == "TextLabel" or child.ClassName == "TextBox" or child.ClassName == "ImageButton" or child.ClassName == "ImageLabel" then
-								child.Visible = false
+	-- Hide elements
+	if Elements then
+		for _, tab in ipairs(Elements:GetChildren()) do
+			if tab.Name ~= "Template" and tab.ClassName == "ScrollingFrame" and tab.Name ~= "Placeholder" then
+				for _, element in ipairs(tab:GetChildren()) do
+					if element.ClassName == "Frame" then
+						if element.Name ~= "SectionSpacing" and element.Name ~= "Placeholder" then
+							if element.Name == "SectionTitle" or element.Name == 'SearchTitle-fsefsefesfsefesfesfThanks' then
+								TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+							elseif element.Name == 'Divider' then
+								TweenService:Create(element.Divider, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+							else
+								TweenService:Create(element, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+								TweenService:Create(element.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+								TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+							end
+							for _, child in ipairs(element:GetChildren()) do
+								if child.ClassName == "Frame" or child.ClassName == "TextLabel" or child.ClassName == "TextBox" or child.ClassName == "ImageButton" or child.ClassName == "ImageLabel" then
+									child.Visible = false
+								end
 							end
 						end
 					end
@@ -1364,9 +1405,13 @@ local function Hide(notify: boolean?)
 	end
 
 	task.wait(0.5)
-	Main.Visible = false
+	if Main then
+		Main.Visible = false
+	end
 	Debounce = false
 end
+
+
 
 
 
@@ -1749,13 +1794,17 @@ function RayfieldLibrary:CreateWindow(Settings)
 	LoadingFrame.Subtitle.TextTransparency = 1
 
 	if Settings.ShowImage then
-	print("=== DEBUG: Creating ShowImage (FIXED) ===")
+	print("=== DEBUG: Creating ShowImage ===")
 	
 	-- Ganti text dengan image
-	MPrompt.Title.Visible = false -- Sembunyikan text
+	if MPrompt and MPrompt:FindFirstChild("Title") then
+		MPrompt.Title.Visible = false -- Sembunyikan text
+	end
 	
 	-- SET POSISI AWAL KE KANAN (bukan tengah)
-	MPrompt.Position = UDim2.new(1, -80, 0, 20) -- Posisi kanan atas
+	if MPrompt then
+		MPrompt.Position = UDim2.new(1, -80, 0, 20) -- Posisi kanan atas
+	end
 	
 	-- Buat ImageButton untuk logo
 	local LogoButton = Instance.new("ImageButton")
@@ -1793,29 +1842,40 @@ function RayfieldLibrary:CreateWindow(Settings)
 		if not dragging and Debounce == false then
 			if Hidden then
 				Hidden = false
-				Unhide()
+				if Unhide then
+					Unhide()
+				end
 			end
 		end
 		
 		clickDebounce = false
 	end)
 	
-	print("=== DEBUG: About to call makeDraggablePrompt (FIXED) ===")
-	makeDraggablePrompt(MPrompt, LogoButton)
+	print("=== DEBUG: About to call makeDraggablePrompt ===")
+	if MPrompt and LogoButton then
+		makeDraggablePrompt(MPrompt, LogoButton)
+	end
 	
 elseif Settings.ShowText then
-	print("=== DEBUG: Creating ShowText (FIXED) ===")
-	MPrompt.Title.Text = 'Show Ui'..Settings.ShowText
+	print("=== DEBUG: Creating ShowText ===")
+	
+	if MPrompt and MPrompt:FindFirstChild("Title") then
+		MPrompt.Title.Text = 'Show Ui'..(Settings.ShowText or "")
+	end
 	
 	-- SET POSISI AWAL KE KANAN (bukan tengah) untuk text version
-	MPrompt.Position = UDim2.new(1, -140, 0, 20) -- Posisi kanan atas (lebih lebar untuk text)
+	if MPrompt then
+		MPrompt.Position = UDim2.new(1, -140, 0, 20) -- Posisi kanan atas (lebih lebar untuk text)
+	end
 	
 	-- Set properties untuk text version
 	MPrompt.Active = true
 	MPrompt.ZIndex = 100
 	
-	print("=== DEBUG: About to call makeDraggablePrompt for text (FIXED) ===")
-	makeDraggablePrompt(MPrompt, MPrompt)
+	print("=== DEBUG: About to call makeDraggablePrompt for text ===")
+	if MPrompt then
+		makeDraggablePrompt(MPrompt, MPrompt)
+	end
 end
 	LoadingFrame.Version.TextTransparency = 1
 	LoadingFrame.Title.Text = Settings.LoadingTitle or "Rayfield"
