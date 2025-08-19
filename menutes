@@ -1242,7 +1242,11 @@ local function Hide(notify: boolean?)
 	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
 	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
 	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-	TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+	
+	-- Pengecekan untuk dragBarCosmetic
+	if dragBarCosmetic then
+		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+	end
 
 	if useMobilePrompt and MPrompt then
 		if MPrompt.Name == "test2" then
@@ -1279,7 +1283,10 @@ local function Hide(notify: boolean?)
 		end
 	end
 
-	dragInteract.Visible = false
+	-- Pengecekan untuk dragInteract
+	if dragInteract then
+		dragInteract.Visible = false
+	end
 
 	for _, tab in ipairs(Elements:GetChildren()) do
 		if tab.Name ~= "Template" and tab.ClassName == "ScrollingFrame" and tab.Name ~= "Placeholder" then
@@ -1424,9 +1431,15 @@ local function Unhide()
 		task.spawn(Maximise)
 	end
 
-	dragBar.Position = useMobileSizing and UDim2.new(0.5, 0, 0.5, dragOffsetMobile) or UDim2.new(0.5, 0, 0.5, dragOffset)
+	-- Pengecekan untuk dragBar
+	if dragBar then
+		dragBar.Position = useMobileSizing and UDim2.new(0.5, 0, 0.5, dragOffsetMobile) or UDim2.new(0.5, 0, 0.5, dragOffset)
+	end
 
-	dragInteract.Visible = true
+	-- Pengecekan untuk dragInteract
+	if dragInteract then
+		dragInteract.Visible = true
+	end
 
 	for _, TopbarButton in ipairs(Topbar:GetChildren()) do
 		if TopbarButton.ClassName == "ImageButton" then
@@ -1480,7 +1493,10 @@ local function Unhide()
 		end
 	end
 
-	TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.5}):Play()
+	-- Pengecekan untuk dragBarCosmetic
+	if dragBarCosmetic then
+		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.5}):Play()
+	end
 
 	task.wait(0.5)
 	Minimised = false
