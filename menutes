@@ -796,6 +796,11 @@ local function ChangeTheme(Theme)
 	Rayfield.Main.Topbar.ChangeSize.ImageColor3 = SelectedTheme.TextColor
 	Rayfield.Main.Topbar.Hide.ImageColor3 = SelectedTheme.TextColor
 	Rayfield.Main.Topbar.Search.ImageColor3 = SelectedTheme.TextColor
+	if Topbar:FindFirstChild('Settings') then
+		Rayfield.Main.Topbar.Settings.ImageColor3 = SelectedTheme.TextColor
+		Rayfield.Main.Topbar.Divider.BackgroundColor3 = SelectedTheme.ElementStroke
+	end
+
 	Main.Search.BackgroundColor3 = SelectedTheme.TextColor
 	Main.Search.Shadow.ImageColor3 = SelectedTheme.TextColor
 	Main.Search.Search.ImageColor3 = SelectedTheme.TextColor
@@ -1519,6 +1524,71 @@ local function updateSetting(category: string, setting: string, value: any)
 	saveSettings()
 end
 
+local function createSettings(window)
+	if not (writefile and isfile and readfile and isfolder and makefolder) and not useStudio then
+		if Topbar['Settings'] then Topbar.Settings.Visible = false end
+		Topbar['Search'].Position = UDim2.new(1, -75, 0.5, 0)
+		warn('Can\'t create settings as no file-saving functionality is available.')
+		return
+	end
+
+	local newTab = window:CreateTab('Rayfield Settings', 0, true)
+
+	if TabList['Rayfield Settings'] then
+		TabList['Rayfield Settings'].LayoutOrder = 1000
+	end
+
+	if Elements['Rayfield Settings'] then
+		Elements['Rayfield Settings'].LayoutOrder = 1000
+	end
+
+	-- Create sections and elements
+	for categoryName, settingCategory in pairs(settingsTable) do
+		newTab:CreateSection(categoryName)
+
+		for settingName, setting in pairs(settingCategory) do
+			if setting.Type == 'input' then
+				setting.Element = newTab:CreateInput({
+					Name = setting.Name,
+					CurrentValue = setting.Value,
+					PlaceholderText = setting.Placeholder,
+					Ext = true,
+					RemoveTextAfterFocusLost = setting.ClearOnFocus,
+					Callback = function(Value)
+						updateSetting(categoryName, settingName, Value)
+					end,
+				})
+			elseif setting.Type == 'toggle' then
+				setting.Element = newTab:CreateToggle({
+					Name = setting.Name,
+					CurrentValue = setting.Value,
+					Ext = true,
+					Callback = function(Value)
+						updateSetting(categoryName, settingName, Value)
+					end,
+				})
+			elseif setting.Type == 'bind' then
+				setting.Element = newTab:CreateKeybind({
+					Name = setting.Name,
+					CurrentKeybind = setting.Value,
+					HoldToInteract = false,
+					Ext = true,
+					CallOnChange = true,
+					Callback = function(Value)
+						updateSetting(categoryName, settingName, Value)
+					end,
+				})
+			end
+		end
+	end
+
+	settingsCreated = true
+	loadSettings()
+	saveSettings()
+end
+
+
+
 function RayfieldLibrary:CreateWindow(Settings)
 	print('creating window')
 	if Rayfield:FindFirstChild('Loading') then
@@ -1577,7 +1647,7 @@ function RayfieldLibrary:CreateWindow(Settings)
 	LoadingFrame.Subtitle.TextTransparency = 1
 
 	if Settings.ShowText then
-		MPrompt.Title.Text = ''..Settings.ShowText -- ui mobile
+		MPrompt.Title.Text = 'Show Ui'..Settings.ShowText -- ui mobile
 	end
 
 	LoadingFrame.Version.TextTransparency = 1
@@ -3469,6 +3539,9 @@ function RayfieldLibrary:CreateWindow(Settings)
 	Topbar.CornerRepair.BackgroundTransparency = 1
 	Topbar.Title.TextTransparency = 1
 	Topbar.Search.ImageTransparency = 1
+	if Topbar:FindFirstChild('Settings') then
+		Topbar.Settings.ImageTransparency = 1
+	end
 	Topbar.ChangeSize.ImageTransparency = 1
 	Topbar.Hide.ImageTransparency = 1
 
@@ -3483,6 +3556,10 @@ function RayfieldLibrary:CreateWindow(Settings)
 	task.wait(0.05)
 	TweenService:Create(Topbar.Search, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
 	task.wait(0.05)
+	if Topbar:FindFirstChild('Settings') then
+		TweenService:Create(Topbar.Settings, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+		task.wait(0.05)
+	end
 	TweenService:Create(Topbar.ChangeSize, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
 	task.wait(0.05)
 	TweenService:Create(Topbar.Hide, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
