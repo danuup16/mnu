@@ -377,7 +377,7 @@ local isSkipTradeActive = false
                if not isSkipTradeActive then
                   isSkipTradeActive = true
                   
-                  -- Method 1: Hook the AwaitTradeResponse RemoteFunction
+                  -- Method 1: Hook the AwaitTradeResponse RemoteFunction to auto-accept giving
                   spawn(function()
                      pcall(function()
                         local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -386,38 +386,23 @@ local isSkipTradeActive = false
                            local net = netFolder.net
                            local awaitTradeResponse = net:FindFirstChild("RF/AwaitTradeResponse")
                            if awaitTradeResponse and awaitTradeResponse:IsA("RemoteFunction") then
-                              -- Store original and replace with auto-decline
+                              -- Store original and replace with auto-accept
                               tradeConnections.originalOnClientInvoke = awaitTradeResponse.OnClientInvoke
-                              awaitTradeResponse.OnClientInvoke = function(...)
-                                 return false -- Always decline
+                              awaitTradeResponse.OnClientInvoke = function(itemData, sender)
+                                 -- Check if this is a giving prompt (when we're the one giving)
+                                 if sender and sender.target then
+                                    return true -- Auto-accept giving to others
+                                 else
+                                    -- This is receiving prompt, let user decide manually
+                                    return tradeConnections.originalOnClientInvoke(itemData, sender)
+                                 end
                               end
                            end
                         end
                      end)
                   end)
                   
-                  -- Method 2: Monitor and remove trade ProximityPrompts
-                  spawn(function()
-                     while isSkipTradeActive do
-                        pcall(function()
-                           for _, player in pairs(game.Players:GetPlayers()) do
-                              if player ~= game.Players.LocalPlayer and player.Character then
-                                 local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
-                                 if humanoidRootPart then
-                                    for _, child in pairs(humanoidRootPart:GetChildren()) do
-                                       if child:IsA("ProximityPrompt") and (child.ActionText == "Give" or child.ObjectText) then
-                                          child:Destroy()
-                                       end
-                                    end
-                                 end
-                              end
-                           end
-                        end)
-                        wait(0.5)
-                     end
-                  end)
-                  
-                  -- Method 3: Monitor for PromptController dialogs and auto-decline
+                  -- Method 2: Monitor for trade dialog and auto-click "Yes" when giving
                   spawn(function()
                      while isSkipTradeActive do
                         pcall(function()
@@ -425,30 +410,26 @@ local isSkipTradeActive = false
                            if playerGui then
                               for _, gui in pairs(playerGui:GetChildren()) do
                                  if gui:IsA("ScreenGui") then
-                                    for _, frame in pairs(gui:GetDescendants()) do
-                                       if frame:IsA("Frame") then
-                                          for _, textLabel in pairs(frame:GetChildren()) do
-                                             if textLabel:IsA("TextLabel") and textLabel.Text then
-                                                local text = textLabel.Text:lower()
-                                                if text:find("would you like to give") or text:find("accept") and text:find("from:") then
-                                                   -- Look for decline button
-                                                   for _, button in pairs(frame:GetDescendants()) do
-                                                      if button:IsA("TextButton") then
-                                                         local buttonText = button.Text:lower()
-                                                         if buttonText:find("no") or buttonText:find("decline") or buttonText:find("cancel") then
-                                                            button:Activate()
-                                                            break
-                                                         end
-                                                      end
+                                    for _, desc in pairs(gui:GetDescendants()) do
+                                       -- Look for the "Would you like to give" dialog text
+                                       if desc:IsA("TextLabel") and desc.Text then
+                                          local text = desc.Text
+                                          if text:find("Would you like to give") then
+                                             -- This is a giving prompt, auto-click "Yes"
+                                             local parentFrame = desc.Parent
+                                             while parentFrame and not parentFrame:IsA("ScreenGui") do
+                                                for _, button in pairs(parentFrame:GetDescendants()) do
+                                                   if button:IsA("TextButton") and button.Text == "Yes" then
+                                                      -- Click the Yes button to auto-give
+                                                      button:Activate()
+                                                      return
                                                    end
-                                                   -- If no decline button found, try to close the GUI
-                                                   wait(0.1)
-                                                   if gui.Parent then
-                                                      gui:Destroy()
-                                                   end
-                                                   break
                                                 end
+                                                parentFrame = parentFrame.Parent
                                              end
+                                          elseif text:find("Accept") and text:find("from:") then
+                                             -- This is a receiving prompt, don't auto-click (let user decide)
+                                             -- Do nothing, let the user manually accept or decline
                                           end
                                        end
                                     end
@@ -456,13 +437,13 @@ local isSkipTradeActive = false
                               end
                            end
                         end)
-                        wait(0.3)
+                        wait(0.05) -- Check very frequently for instant response
                      end
                   end)
                   
                   Rayfield:Notify({
                      Title = "Skip Trade Enabled",
-                     Content = "Trade requests will be auto-declined",
+                     Content = "Giving items will be automatic (Yes)",
                      Duration = 3,
                      Image = "check-circle",
                   })
