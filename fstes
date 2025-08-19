@@ -366,7 +366,9 @@ local noclipp = PlayerTab:CreateToggle({
          end,
       })
 local isSkipTradeActive = false
-      local tradePromptConnection = nil
+      local originalAwaitTradeResponse = nil
+      local tradeConnections = {}
+      
       local skipTradeToggle = PlayerTab:CreateToggle({
          Name = "Skip Trade Prompt",
          CurrentValue = false,
@@ -374,80 +376,107 @@ local isSkipTradeActive = false
          Callback = function(Value)
             if Value then
                if not isSkipTradeActive then
-                  isSkipTradeActive = true
-                  
-                  -- Method 1: Monitor for trade prompt GUI and auto-close it
-                  spawn(function()
-                     while isSkipTradeActive do
-                        pcall(function()
-                           local playerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
-                           if playerGui then
-                              -- Look for trade prompt windows
-                              for _, gui in pairs(playerGui:GetChildren()) do
-                                 if gui.Name:lower():find("trade") or gui.Name:lower():find("prompt") then
-                                    if gui:FindFirstChild("Frame") or gui:FindFirstChild("Background") then
-                                       -- Look for decline/close buttons
-                                       for _, desc in pairs(gui:GetDescendants()) do
-                                          if desc:IsA("TextButton") or desc:IsA("ImageButton") then
-                                             local text = desc.Text:lower()
-                                             if text:find("decline") or text:find("close") or text:find("cancel") or text:find("x") then
-                                                desc:Activate()
-                                                break
-                                             end
+                  local success = pcall(function()
+                     local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                     local Net = require(ReplicatedStorage.Packages.Net)
+                     
+                     -- Method 1: Hook AwaitTradeResponse to auto-decline
+                     local awaitTradeResponse = Net:RemoteFunction("AwaitTradeResponse")
+                     if not originalAwaitTradeResponse then
+                        originalAwaitTradeResponse = awaitTradeResponse.OnClientInvoke
+                     end
+                     
+                     -- Override to always return false (decline)
+                     awaitTradeResponse.OnClientInvoke = function(...)
+                        return false -- Auto decline all trade requests
+                     end
+                     
+                     -- Method 2: Hook ItemTradingController directly
+                     local itemTradingController = require(ReplicatedStorage.Controllers.ItemTradingController)
+                     if itemTradingController and itemTradingController.CreateTradePrompt then
+                        local originalCreateTradePrompt = itemTradingController.CreateTradePrompt
+                        itemTradingController.CreateTradePrompt = function(...)
+                           -- Return a rejected promise to skip the prompt
+                           local Promise = require(ReplicatedStorage.Packages.Promise)
+                           return Promise.resolve(false) -- Auto decline
+                        end
+                        tradeConnections.originalCreateTradePrompt = originalCreateTradePrompt
+                     end
+                     
+                     -- Method 3: Monitor for ProximityPrompts and disable them
+                     spawn(function()
+                        while isSkipTradeActive do
+                           pcall(function()
+                              for _, player in pairs(game.Players:GetPlayers()) do
+                                 if player ~= game.Players.LocalPlayer and player.Character then
+                                    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+                                    if humanoidRootPart then
+                                       for _, child in pairs(humanoidRootPart:GetChildren()) do
+                                          if child:IsA("ProximityPrompt") and child.ActionText == "Give" then
+                                             child:Destroy() -- Remove trade proximity prompts
                                           end
                                        end
-                                       -- If no button found, try to destroy the GUI
-                                       wait(0.1)
-                                       if gui.Parent then
-                                          gui:Destroy()
-                                       end
                                     end
                                  end
                               end
-                           end
-                        end)
-                        wait(0.5)
-                     end
+                           end)
+                           wait(0.5)
+                        end
+                     end)
+                     
+                     return true
                   end)
                   
-                  -- Method 2: Hook into trade-related remote events
-                  spawn(function()
-                     while isSkipTradeActive do
-                        pcall(function()
-                           local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                           local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
-                           if netFolder and netFolder:FindFirstChild("net") then
-                              local net = netFolder.net
-                              -- Look for trade-related remotes and auto-decline
-                              for _, remote in pairs(net:GetChildren()) do
-                                 if remote.Name:lower():find("trade") then
-                                    if remote:IsA("RemoteEvent") and remote.Name:find("Response") then
-                                       -- Auto decline trade requests
-                                       remote:FireServer(false) -- Decline
-                                    end
-                                 end
-                              end
-                           end
-                        end)
-                        wait(1)
-                     end
-                  end)
-                  
-                  Rayfield:Notify({
-                     Title = "Skip Trade Enabled",
-                     Content = "Trade prompts will now be auto-declined",
-                     Duration = 3,
-                     Image = "check-circle",
-                  })
+                  if success then
+                     isSkipTradeActive = true
+                     Rayfield:Notify({
+                        Title = "Skip Trade Enabled",
+                        Content = "All trade requests will be auto-declined",
+                        Duration = 3,
+                        Image = "check-circle",
+                     })
+                  else
+                     Rayfield:Notify({
+                        Title = "Failed to Enable",
+                        Content = "Could not hook trade functions",
+                        Duration = 3,
+                        Image = "x-circle",
+                     })
+                  end
                end
             else
-               isSkipTradeActive = false
-               Rayfield:Notify({
-                  Title = "Skip Trade Disabled",
-                  Content = "Trade prompts are now normal",
-                  Duration = 3,
-                  Image = "info",
-               })
+               if isSkipTradeActive then
+                  local success = pcall(function()
+                     local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                     local Net = require(ReplicatedStorage.Packages.Net)
+                     
+                     -- Restore original AwaitTradeResponse
+                     if originalAwaitTradeResponse then
+                        local awaitTradeResponse = Net:RemoteFunction("AwaitTradeResponse")
+                        awaitTradeResponse.OnClientInvoke = originalAwaitTradeResponse
+                     end
+                     
+                     -- Restore original CreateTradePrompt
+                     if tradeConnections.originalCreateTradePrompt then
+                        local itemTradingController = require(ReplicatedStorage.Controllers.ItemTradingController)
+                        if itemTradingController then
+                           itemTradingController.CreateTradePrompt = tradeConnections.originalCreateTradePrompt
+                        end
+                     end
+                     
+                     return true
+                  end)
+                  
+                  isSkipTradeActive = false
+                  tradeConnections = {}
+                  
+                  Rayfield:Notify({
+                     Title = "Skip Trade Disabled",
+                     Content = "Trade prompts are now normal",
+                     Duration = 3,
+                     Image = "info",
+                  })
+               end
             end
          end,
       })
