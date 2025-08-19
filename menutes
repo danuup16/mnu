@@ -947,7 +947,7 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 		if renderStepped then renderStepped:Disconnect() end
 	end)
 end
-local savedPromptPosition = UDim2.new(0.5, 0, 0, 20) -- Default position
+local savedPromptPosition = UDim2.new(0, 751, 0, 86) -- Default position
 
 local function makeDraggablePrompt(object, dragObject)
 	print("=== DEBUG: makeDraggablePrompt called ===")
@@ -986,20 +986,15 @@ local function makeDraggablePrompt(object, dragObject)
 	end)
 
 	-- GUNAKAN UserInputService untuk mouse release (global)
-local inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
-		dragging = false
-		savedPromptPosition = object.Position
-		
-		-- LOG UNTUK POSISI BARU - MUDAH UNTUK COPY PASTE
-		print("═══════════════════════════════════════")
-		print("🎯 LOGOBUTTON POSITION CHANGED!")
-		print("📍 New Position:", savedPromptPosition)
-		print("📋 Copy this for default position:")
-		print("   savedPromptPosition = UDim2.new("..savedPromptPosition.X.Scale..", "..savedPromptPosition.X.Offset..", "..savedPromptPosition.Y.Scale..", "..savedPromptPosition.Y.Offset..")")
-		print("═══════════════════════════════════════")
-	end
-end)
+	local inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+			print("DEBUG: Mouse released - Stopping drag")
+			dragging = false
+			-- SAVE POSITION WHEN DRAG ENDS
+			savedPromptPosition = object.Position
+			print("DEBUG: Saved position:", savedPromptPosition)
+		end
+	end)
 
 	-- GUNAKAN UserInputService untuk mouse movement (global)
 	local inputChangedConnection = UserInputService.InputChanged:Connect(function(input)
