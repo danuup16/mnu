@@ -947,7 +947,7 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 		if renderStepped then renderStepped:Disconnect() end
 	end)
 end
-local savedPromptPosition = UDim2.new(0.5, 0, 0, 20) -- Default position
+local savedPromptPosition = UDim2.new(0, 693, 0, 62) -- Default position
 
 local function makeDraggablePrompt(object, dragObject)
 	print("=== DEBUG: makeDraggablePrompt called ===")
@@ -1774,7 +1774,7 @@ function RayfieldLibrary:CreateWindow(Settings)
 	LogoButton.Parent = MPrompt
 	LogoButton.BackgroundTransparency = 1
 	LogoButton.Size = UDim2.new(1, 0, 1, 0)
-	LogoButton.Position = UDim2.new(0, 0, 0, 0)
+	LogoButton.Position = UDim2.new(0, 693, 0, 62)
 	LogoButton.Image = Settings.ShowImage or "rbxassetid://125307367032337"
 	LogoButton.ImageTransparency = 1 -- Mulai transparan
 	
