@@ -1769,7 +1769,7 @@ function RayfieldLibrary:CreateWindow(Settings)
 	LogoButton.Parent = MPrompt
 	LogoButton.BackgroundTransparency = 1
 	LogoButton.Size = UDim2.new(1, 0, 1, 0)
-	LogoButton.Position = UDim2.new(0, 751, 0, 86)
+	LogoButton.Position = UDim2.new(0, 0, 0, 0)
 	LogoButton.Image = Settings.ShowImage or "rbxassetid://125307367032337"
 	LogoButton.ImageTransparency = 1 -- Mulai transparan
 	
@@ -1777,6 +1777,11 @@ function RayfieldLibrary:CreateWindow(Settings)
 	LogoButton.Active = true
 	LogoButton.ZIndex = 10
 	MPrompt.ZIndex = 100
+	
+	print("DEBUG: LogoButton Active:", LogoButton.Active)
+	print("DEBUG: LogoButton ZIndex:", LogoButton.ZIndex)
+	print("DEBUG: MPrompt ZIndex:", MPrompt.ZIndex)
+	
 	-- Tambahkan UIAspectRatioConstraint agar logo tidak pecah
 	local AspectRatio = Instance.new("UIAspectRatioConstraint")
 	AspectRatio.Parent = LogoButton
