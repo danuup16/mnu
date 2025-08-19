@@ -1414,99 +1414,6 @@ local function Minimise()
 	task.wait(0.2)
 	Debounce = false
 end
-
-local function saveSettings() -- Save settings to config file
-	local encoded
-	local success, err = pcall(function()
-		encoded = HttpService:JSONEncode(settingsTable)
-	end)
-
-	if success then
-		if useStudio then
-			if script.Parent['get.val'] then
-				script.Parent['get.val'].Value = encoded
-			end
-		end
-		-- if writefile then
-		-- 	writefile(RayfieldFolder..'/settings'..ConfigurationExtension, encoded) ---tes
-		-- end
-	end
-end
-
-local function updateSetting(category: string, setting: string, value: any)
-	if not settingsInitialized then
-		return
-	end
-	settingsTable[category][setting].Value = value
-	overriddenSettings[`{category}.{setting}`] = nil -- If user changes an overriden setting, remove the override
-	saveSettings()
-end
-
-local function createSettings(window)
-	if not (writefile and isfile and readfile and isfolder and makefolder) and not useStudio then
-		if Topbar['Settings'] then Topbar.Settings.Visible = false end
-		Topbar['Search'].Position = UDim2.new(1, -75, 0.5, 0)
-		warn('Can\'t create settings as no file-saving functionality is available.')
-		return
-	end
-
-	local newTab = window:CreateTab('Rayfield Settings', 0, true)
-
-	if TabList['Rayfield Settings'] then
-		TabList['Rayfield Settings'].LayoutOrder = 1000
-	end
-
-	if Elements['Rayfield Settings'] then
-		Elements['Rayfield Settings'].LayoutOrder = 1000
-	end
-
-	-- Create sections and elements
-	for categoryName, settingCategory in pairs(settingsTable) do
-		newTab:CreateSection(categoryName)
-
-		for settingName, setting in pairs(settingCategory) do
-			if setting.Type == 'input' then
-				setting.Element = newTab:CreateInput({
-					Name = setting.Name,
-					CurrentValue = setting.Value,
-					PlaceholderText = setting.Placeholder,
-					Ext = true,
-					RemoveTextAfterFocusLost = setting.ClearOnFocus,
-					Callback = function(Value)
-						updateSetting(categoryName, settingName, Value)
-					end,
-				})
-			elseif setting.Type == 'toggle' then
-				setting.Element = newTab:CreateToggle({
-					Name = setting.Name,
-					CurrentValue = setting.Value,
-					Ext = true,
-					Callback = function(Value)
-						updateSetting(categoryName, settingName, Value)
-					end,
-				})
-			elseif setting.Type == 'bind' then
-				setting.Element = newTab:CreateKeybind({
-					Name = setting.Name,
-					CurrentKeybind = setting.Value,
-					HoldToInteract = false,
-					Ext = true,
-					CallOnChange = true,
-					Callback = function(Value)
-						updateSetting(categoryName, settingName, Value)
-					end,
-				})
-			end
-		end
-	end
-
-	settingsCreated = true
-	loadSettings()
-	saveSettings()
-end
-
-
-
 function RayfieldLibrary:CreateWindow(Settings)
 	print('creating window')
 	if Rayfield:FindFirstChild('Loading') then
@@ -3495,11 +3402,6 @@ function RayfieldLibrary:CreateWindow(Settings)
 			RayfieldLibrary:Notify({Title = 'Theme Changed', Content = 'Successfully changed theme to '..(typeof(NewTheme) == 'string' and NewTheme or 'Custom Theme')..'.', Image = 4483362748})
 		end
 	end
-
-	local success, result = pcall(function()
-		createSettings(Window)
-	end)
-
 	if not success then warn('Rayfield had an issue creating settings.') end
 
 	return Window
