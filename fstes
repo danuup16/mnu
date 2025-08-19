@@ -365,7 +365,71 @@ local noclipp = PlayerTab:CreateToggle({
             end
          end,
       })
-
+local Button = PlayerTab:CreateButton({
+         Name = "Skip Trade Prompt",
+         Callback = function()
+            local success, error = pcall(function()
+               local aux = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/Upbolt/Hydroxide/revision/ohaux.lua"))()
+               local scriptPath = game:GetService("ReplicatedStorage").Controllers.ItemTradingController
+               
+               -- Try multiple configurations to find and modify CreateTradePrompt
+               local configs = {
+                  {closureName = "Unnamed function", upvalueIndex = 4, constants = {"Clean", "GetEquippedInventoryItem", "ObserveTrade", "Add"}},
+                  {closureName = "ObserveTrade", upvalueIndex = 12, constants = {"GetItemDataFromEquippedItem", "TradeLocked", "print", nil, "Item trade locked", "table", "find"}},
+                  {closureName = "Start", upvalueIndex = 5, constants = {"Client", "Data", "WaitReplion", nil, "OnClientInvoke", "EquippedId", "OnChange"}},
+                  {closureName = "Unnamed function", upvalueIndex = 2, constants = {"Id", "GetItemData", "print", nil, "[ItemTradingController] No item data found when sent item!", "sender", nil, "CreateTradePrompt"}}
+               }
+               
+               local modified = false
+               for _, config in ipairs(configs) do
+                  local closure = aux.searchClosure(scriptPath, config.closureName, config.upvalueIndex, config.constants)
+                  if closure then
+                     local upvalue = debug.getupvalue(closure, config.upvalueIndex)
+                     if upvalue and upvalue.CreateTradePrompt then
+                        upvalue.CreateTradePrompt = function() end -- Override to do nothing
+                        modified = true
+                     end
+                  end
+               end
+               
+               -- Alternative method - try to find and disable directly
+               if not modified then
+                  local controllers = game:GetService("ReplicatedStorage"):FindFirstChild("Controllers")
+                  if controllers then
+                     local itemTradingController = controllers:FindFirstChild("ItemTradingController")
+                     if itemTradingController then
+                        -- Try to access and modify the module
+                        local success2 = pcall(function()
+                           local module = require(itemTradingController)
+                           if module and module.CreateTradePrompt then
+                              module.CreateTradePrompt = function() end
+                              modified = true
+                           end
+                        end)
+                     end
+                  end
+               end
+               
+               return modified
+            end)
+            
+            if success then
+               Rayfield:Notify({
+                  Title = "Trade Prompt Disabled",
+                  Content = "Trade prompts will now be skipped",
+                  Duration = 5,
+                  Image = "check-circle",
+               })
+            else
+               Rayfield:Notify({
+                  Title = "Failed to Disable",
+                  Content = "Could not access trade prompt function",
+                  Duration = 5,
+                  Image = "x-circle",
+               })
+            end
+         end,
+      })
    local fishTab = Window:CreateTab("Fishing", "fish")
       local isAutoFishActive = false
       local fishingDelay = 2.3 
