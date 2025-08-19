@@ -365,68 +365,146 @@ local noclipp = PlayerTab:CreateToggle({
             end
          end,
       })
-local Button = PlayerTab:CreateButton({
+local isSkipTradeActive = false
+      local originalCreateTradePrompt = nil
+      local skipTradeToggle = PlayerTab:CreateToggle({
          Name = "Skip Trade Prompt",
-         Callback = function()
-            local success, error = pcall(function()
-               local aux = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/Upbolt/Hydroxide/revision/ohaux.lua"))()
-               local scriptPath = game:GetService("ReplicatedStorage").Controllers.ItemTradingController
-               
-               -- Try multiple configurations to find and modify CreateTradePrompt
-               local configs = {
-                  {closureName = "Unnamed function", upvalueIndex = 4, constants = {"Clean", "GetEquippedInventoryItem", "ObserveTrade", "Add"}},
-                  {closureName = "ObserveTrade", upvalueIndex = 12, constants = {"GetItemDataFromEquippedItem", "TradeLocked", "print", nil, "Item trade locked", "table", "find"}},
-                  {closureName = "Start", upvalueIndex = 5, constants = {"Client", "Data", "WaitReplion", nil, "OnClientInvoke", "EquippedId", "OnChange"}},
-                  {closureName = "Unnamed function", upvalueIndex = 2, constants = {"Id", "GetItemData", "print", nil, "[ItemTradingController] No item data found when sent item!", "sender", nil, "CreateTradePrompt"}}
-               }
-               
-               local modified = false
-               for _, config in ipairs(configs) do
-                  local closure = aux.searchClosure(scriptPath, config.closureName, config.upvalueIndex, config.constants)
-                  if closure then
-                     local upvalue = debug.getupvalue(closure, config.upvalueIndex)
-                     if upvalue and upvalue.CreateTradePrompt then
-                        upvalue.CreateTradePrompt = function() end -- Override to do nothing
-                        modified = true
-                     end
-                  end
-               end
-               
-               -- Alternative method - try to find and disable directly
-               if not modified then
-                  local controllers = game:GetService("ReplicatedStorage"):FindFirstChild("Controllers")
-                  if controllers then
-                     local itemTradingController = controllers:FindFirstChild("ItemTradingController")
-                     if itemTradingController then
-                        -- Try to access and modify the module
-                        local success2 = pcall(function()
-                           local module = require(itemTradingController)
-                           if module and module.CreateTradePrompt then
-                              module.CreateTradePrompt = function() end
+         CurrentValue = false,
+         Flag = "skiptrade",
+         Callback = function(Value)
+            if Value then
+               if not isSkipTradeActive then
+                  local success, error = pcall(function()
+                     local aux = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/Upbolt/Hydroxide/revision/ohaux.lua"))()
+                     local scriptPath = game:GetService("ReplicatedStorage").Controllers.ItemTradingController
+                     
+                     -- Try multiple configurations to find and modify CreateTradePrompt
+                     local configs = {
+                        {closureName = "Unnamed function", upvalueIndex = 4, constants = {"Clean", "GetEquippedInventoryItem", "ObserveTrade", "Add"}},
+                        {closureName = "ObserveTrade", upvalueIndex = 12, constants = {"GetItemDataFromEquippedItem", "TradeLocked", "print", nil, "Item trade locked", "table", "find"}},
+                        {closureName = "Start", upvalueIndex = 5, constants = {"Client", "Data", "WaitReplion", nil, "OnClientInvoke", "EquippedId", "OnChange"}},
+                        {closureName = "Unnamed function", upvalueIndex = 2, constants = {"Id", "GetItemData", "print", nil, "[ItemTradingController] No item data found when sent item!", "sender", nil, "CreateTradePrompt"}}
+                     }
+                     
+                     local modified = false
+                     for _, config in ipairs(configs) do
+                        local closure = aux.searchClosure(scriptPath, config.closureName, config.upvalueIndex, config.constants)
+                        if closure then
+                           local upvalue = debug.getupvalue(closure, config.upvalueIndex)
+                           if upvalue and upvalue.CreateTradePrompt then
+                              if not originalCreateTradePrompt then
+                                 originalCreateTradePrompt = upvalue.CreateTradePrompt
+                              end
+                              upvalue.CreateTradePrompt = function() end -- Override to do nothing
                               modified = true
                            end
-                        end)
+                        end
                      end
+                     
+                     -- Alternative method - try to find and disable directly
+                     if not modified then
+                        local controllers = game:GetService("ReplicatedStorage"):FindFirstChild("Controllers")
+                        if controllers then
+                           local itemTradingController = controllers:FindFirstChild("ItemTradingController")
+                           if itemTradingController then
+                              local success2 = pcall(function()
+                                 local module = require(itemTradingController)
+                                 if module and module.CreateTradePrompt then
+                                    if not originalCreateTradePrompt then
+                                       originalCreateTradePrompt = module.CreateTradePrompt
+                                    end
+                                    module.CreateTradePrompt = function() end
+                                    modified = true
+                                 end
+                              end)
+                           end
+                        end
+                     end
+                     
+                     return modified
+                  end)
+                  
+                  if success then
+                     isSkipTradeActive = true
+                     Rayfield:Notify({
+                        Title = "Skip Trade Enabled",
+                        Content = "Trade prompts will now be skipped",
+                        Duration = 3,
+                        Image = "check-circle",
+                     })
+                  else
+                     Rayfield:Notify({
+                        Title = "Failed to Enable",
+                        Content = "Could not access trade prompt function",
+                        Duration = 3,
+                        Image = "x-circle",
+                     })
                   end
                end
-               
-               return modified
-            end)
-            
-            if success then
-               Rayfield:Notify({
-                  Title = "Trade Prompt Disabled",
-                  Content = "Trade prompts will now be skipped",
-                  Duration = 5,
-                  Image = "check-circle",
-               })
             else
-               Rayfield:Notify({
-                  Title = "Failed to Disable",
-                  Content = "Could not access trade prompt function",
-                  Duration = 5,
-                  Image = "x-circle",
-               })
+               if isSkipTradeActive then
+                  local success, error = pcall(function()
+                     if originalCreateTradePrompt then
+                        local aux = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/Upbolt/Hydroxide/revision/ohaux.lua"))()
+                        local scriptPath = game:GetService("ReplicatedStorage").Controllers.ItemTradingController
+                        
+                        local configs = {
+                           {closureName = "Unnamed function", upvalueIndex = 4, constants = {"Clean", "GetEquippedInventoryItem", "ObserveTrade", "Add"}},
+                           {closureName = "ObserveTrade", upvalueIndex = 12, constants = {"GetItemDataFromEquippedItem", "TradeLocked", "print", nil, "Item trade locked", "table", "find"}},
+                           {closureName = "Start", upvalueIndex = 5, constants = {"Client", "Data", "WaitReplion", nil, "OnClientInvoke", "EquippedId", "OnChange"}},
+                           {closureName = "Unnamed function", upvalueIndex = 2, constants = {"Id", "GetItemData", "print", nil, "[ItemTradingController] No item data found when sent item!", "sender", nil, "CreateTradePrompt"}}
+                        }
+                        
+                        local restored = false
+                        for _, config in ipairs(configs) do
+                           local closure = aux.searchClosure(scriptPath, config.closureName, config.upvalueIndex, config.constants)
+                           if closure then
+                              local upvalue = debug.getupvalue(closure, config.upvalueIndex)
+                              if upvalue and upvalue.CreateTradePrompt then
+                                 upvalue.CreateTradePrompt = originalCreateTradePrompt
+                                 restored = true
+                              end
+                           end
+                        end
+                        
+                        if not restored then
+                           local controllers = game:GetService("ReplicatedStorage"):FindFirstChild("Controllers")
+                           if controllers then
+                              local itemTradingController = controllers:FindFirstChild("ItemTradingController")
+                              if itemTradingController then
+                                 local success2 = pcall(function()
+                                    local module = require(itemTradingController)
+                                    if module and module.CreateTradePrompt then
+                                       module.CreateTradePrompt = originalCreateTradePrompt
+                                       restored = true
+                                    end
+                                 end)
+                              end
+                           end
+                        end
+                        
+                        return restored
+                     end
+                     return false
+                  end)
+                  
+                  isSkipTradeActive = false
+                  if success then
+                     Rayfield:Notify({
+                        Title = "Skip Trade Disabled",
+                        Content = "Trade prompts are now normal",
+                        Duration = 3,
+                        Image = "check-circle",
+                     })
+                  else
+                     Rayfield:Notify({
+                        Title = "Disabled",
+                        Content = "Skip trade has been turned off",
+                        Duration = 3,
+                        Image = "info",
+                     })
+                  end
+               end
             end
          end,
       })
