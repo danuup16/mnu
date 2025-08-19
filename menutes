@@ -1308,11 +1308,11 @@ local function Hide(notify: boolean?)
 if useMobilePrompt and MPrompt then
 		if MPrompt:FindFirstChild("LogoButton") then
 			-- Animasi untuk logo
-			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 60, 0, 60), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 0.3}):Play()
+			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 60, 0, 60), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 1}):Play()
 			TweenService:Create(MPrompt.LogoButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.3}):Play()
 		else
 			-- Fallback ke text animation
-			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 120, 0, 30), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 0.3}):Play()
+			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 120, 0, 30), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 1}):Play()
 			TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0.3}):Play()
 		end
 	end
