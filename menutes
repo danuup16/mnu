@@ -950,6 +950,10 @@ end
 local savedPromptPosition = UDim2.new(0, 751, 0, 86) -- Default position
 
 local function makeDraggablePrompt(object, dragObject)
+	print("=== DEBUG: makeDraggablePrompt called ===")
+	print("Object:", object.Name)
+	print("DragObject:", dragObject.Name)
+	
 	local dragging = false
 	local relative = nil
 	local offset = Vector2.zero
@@ -963,34 +967,52 @@ local function makeDraggablePrompt(object, dragObject)
 	if dragObject.ClassName == "ImageButton" then
 		dragObject.Active = true
 	end
+
+	print("=== Setting up Mouse Events (FIXED) ===")
+	
 	-- GUNAKAN MouseButton1Down instead of InputBegan
 	local mouseDownConnection = dragObject.MouseButton1Down:Connect(function()
+		print("DEBUG: MouseButton1Down triggered - Starting drag")
 		dragging = true
 		
 		local mousePos = UserInputService:GetMouseLocation()
 		local objPos = object.AbsolutePosition + object.AbsoluteSize * object.AnchorPoint
 		relative = objPos - mousePos
+		
+		print("DEBUG: Mouse Position:", mousePos)
+		print("DEBUG: Object Position:", objPos)
+		print("DEBUG: Relative:", relative)
+		print("DEBUG: Dragging set to:", dragging)
 	end)
 
 	-- GUNAKAN UserInputService untuk mouse release (global)
 	local inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+			print("DEBUG: Mouse released - Stopping drag")
 			dragging = false
 			-- SAVE POSITION WHEN DRAG ENDS
 			savedPromptPosition = object.Position
+			print("DEBUG: Saved position:", savedPromptPosition)
 		end
 	end)
 
 	-- GUNAKAN UserInputService untuk mouse movement (global)
 	local inputChangedConnection = UserInputService.InputChanged:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+			print("DEBUG: Mouse moving while dragging")
 			local mousePos = UserInputService:GetMouseLocation()
 			local newPosition = mousePos + relative + offset
 			
+			print("DEBUG: New position:", newPosition)
 			object.Position = UDim2.fromOffset(newPosition.X, newPosition.Y)
 		end
 	end)
+
+	print("=== All connections set up successfully (FIXED) ===")
+
+	-- Cleanup connections
 	object.Destroying:Connect(function()
+		print("DEBUG: Cleaning up connections")
 		if mouseDownConnection then mouseDownConnection:Disconnect() end
 		if inputEndedConnection then inputEndedConnection:Disconnect() end
 		if inputChangedConnection then inputChangedConnection:Disconnect() end
@@ -1621,14 +1643,14 @@ local function createSettings(window)
 		return
 	end
 
-	local newTab = window:CreateTab('nuSettings', 0, true)
+	local newTab = window:CreateTab('Rayfield Settings', 0, true)
 
-	if TabList['nuSettings'] then
-		TabList['nuSettings'].LayoutOrder = 1000
+	if TabList['Rayfield Settings'] then
+		TabList['Rayfield Settings'].LayoutOrder = 1000
 	end
 
-	if Elements['nuSettings'] then
-		Elements['nuSettings'].LayoutOrder = 1000
+	if Elements['Rayfield Settings'] then
+		Elements['Rayfield Settings'].LayoutOrder = 1000
 	end
 
 	-- Create sections and elements
@@ -1679,7 +1701,7 @@ end
 
 
 function RayfieldLibrary:CreateWindow(Settings)
-	print('djs')
+	print('creating window')
 	if Rayfield:FindFirstChild('Loading') then
 		if getgenv and not getgenv().rayfieldCached then
 			Rayfield.Enabled = true
@@ -1736,7 +1758,12 @@ function RayfieldLibrary:CreateWindow(Settings)
 	LoadingFrame.Subtitle.TextTransparency = 1
 
 	if Settings.ShowImage then
+	print("=== DEBUG: Creating ShowImage (FIXED) ===")
+	
+	-- Ganti text dengan image
 	MPrompt.Title.Visible = false -- Sembunyikan text
+	
+	-- Buat ImageButton untuk logo
 	local LogoButton = Instance.new("ImageButton")
 	LogoButton.Name = "LogoButton"
 	LogoButton.Parent = MPrompt
@@ -1744,15 +1771,21 @@ function RayfieldLibrary:CreateWindow(Settings)
 	LogoButton.Size = UDim2.new(1, 0, 1, 0)
 	LogoButton.Position = UDim2.new(0, 751, 0, 86)
 	LogoButton.Image = Settings.ShowImage or "rbxassetid://125307367032337"
-	LogoButton.ImageTransparency = 1 
+	LogoButton.ImageTransparency = 1 -- Mulai transparan
+	
+	-- PENTING: Set Active dan ZIndex
 	LogoButton.Active = true
 	LogoButton.ZIndex = 10
 	MPrompt.ZIndex = 100
+	-- Tambahkan UIAspectRatioConstraint agar logo tidak pecah
 	local AspectRatio = Instance.new("UIAspectRatioConstraint")
 	AspectRatio.Parent = LogoButton
 	AspectRatio.AspectRatio = 1
+	
+	-- Connect click event (dengan priority check)
 	local clickDebounce = false
 	LogoButton.MouseButton1Click:Connect(function()
+		print("DEBUG: LogoButton clicked")
 		if clickDebounce then return end
 		clickDebounce = true
 		
@@ -1767,14 +1800,19 @@ function RayfieldLibrary:CreateWindow(Settings)
 		
 		clickDebounce = false
 	end)
+	
+	print("=== DEBUG: About to call makeDraggablePrompt (FIXED) ===")
 	makeDraggablePrompt(MPrompt, LogoButton)
 	
 elseif Settings.ShowText then
+	print("=== DEBUG: Creating ShowText (FIXED) ===")
 	MPrompt.Title.Text = 'Show Ui'..Settings.ShowText
 	
 	-- Set properties untuk text version
 	MPrompt.Active = true
 	MPrompt.ZIndex = 100
+	
+	print("=== DEBUG: About to call makeDraggablePrompt for text (FIXED) ===")
 	makeDraggablePrompt(MPrompt, MPrompt)
 end
 
@@ -3826,7 +3864,7 @@ if Topbar:FindFirstChild('Settings') then
 				end
 			end
 
-			Elements.UIPageLayout:JumpTo(Elements['nuSettings'])
+			Elements.UIPageLayout:JumpTo(Elements['Rayfield Settings'])
 		end)
 	end)
 
