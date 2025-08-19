@@ -947,6 +947,9 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 		if renderStepped then renderStepped:Disconnect() end
 	end)
 end
+local currentPromptPosition = nil
+
+-- Modifikasi fungsi makeDraggablePrompt untuk menyimpan posisi dalam memori
 local function makeDraggablePrompt(object, dragObject)
 	print("=== DEBUG: makeDraggablePrompt called ===")
 	print("Object:", object.Name)
@@ -988,6 +991,9 @@ local function makeDraggablePrompt(object, dragObject)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
 			print("DEBUG: Mouse released - Stopping drag")
 			dragging = false
+			-- SIMPAN POSISI SAAT INI DALAM MEMORI
+			currentPromptPosition = object.Position
+			print("DEBUG: Position saved in memory:", currentPromptPosition)
 		end
 	end)
 
@@ -1269,30 +1275,28 @@ end
 local function Hide(notify: boolean?)
 	if MPrompt then
 		MPrompt.Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-		MPrompt.Position = UDim2.new(0.5, 0, 0, -50)
+		
+		-- GUNAKAN POSISI YANG TERSIMPAN DALAM MEMORI ATAU DEFAULT KE KANAN
+		if currentPromptPosition then
+			MPrompt.Position = currentPromptPosition
+			print("DEBUG: Using saved position:", currentPromptPosition)
+		else
+			-- POSISI DEFAULT KE KANAN (bukan tengah)
+			MPrompt.Position = UDim2.new(1, -80, 0, 20) -- Posisi kanan atas
+			print("DEBUG: Using default right position")
+		end
+		
 		MPrompt.Size = UDim2.new(0, 40, 0, 10)
 		MPrompt.BackgroundTransparency = 1
 		MPrompt.Title.TextTransparency = 1
-		
-		-- Jika ada logo, set transparansi logo juga
 		if MPrompt:FindFirstChild("LogoButton") then
 			MPrompt.LogoButton.ImageTransparency = 1
 		end
-		
 		MPrompt.Visible = true
 	end
-
-
 	task.spawn(closeSearch)
 
 	Debounce = true
-	-- if notify then
-	-- 	if useMobilePrompt then 
-	-- 		RayfieldLibrary:Notify({Title = "#DJSSTORE", Content = "Open/Hide menu 'F' ", Duration = 7, Image = "bell-ring"})
-	-- 	else
-	-- 		RayfieldLibrary:Notify({Title = "#DJSSTORE", Content = "Open/Hide menu 'F' ", Duration = 7, Image = "bell-ring"})
-	-- 	end
-	-- end
 
 	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 0)}):Play()
 	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 45)}):Play()
@@ -1305,19 +1309,17 @@ local function Hide(notify: boolean?)
 	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
 	TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
 
-if useMobilePrompt and MPrompt then
+	if useMobilePrompt and MPrompt then
 		if MPrompt:FindFirstChild("LogoButton") then
-			-- Animasi untuk logo
-			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 60, 0, 60), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 1}):Play()
+			-- Animasi untuk logo - UKURAN TETAP 60x60
+			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 60, 0, 60), BackgroundTransparency = 1}):Play()
 			TweenService:Create(MPrompt.LogoButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.3}):Play()
 		else
 			-- Fallback ke text animation
-			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 120, 0, 30), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 1}):Play()
+			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 120, 0, 30), BackgroundTransparency = 1}):Play()
 			TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0.3}):Play()
 		end
 	end
-
-
 
 	for _, TopbarButton in ipairs(Topbar:GetChildren()) do
 		if TopbarButton.ClassName == "ImageButton" then
@@ -1365,6 +1367,8 @@ if useMobilePrompt and MPrompt then
 	Main.Visible = false
 	Debounce = false
 end
+
+
 
 local function Maximise()
 	Debounce = true
@@ -1692,13 +1696,10 @@ end
 
 function RayfieldLibrary:CreateWindow(Settings)
 	print('creating window')
+	loadPromptPosition()
 	if Rayfield:FindFirstChild('Loading') then
 		if getgenv and not getgenv().rayfieldCached then
 			Rayfield.Enabled = true
-			-- Rayfield.Loading.Visible = true
-
-			-- task.wait(1.4)
-			-- Rayfield.Loading.Visible = false
 		end
 	end
 
@@ -1753,6 +1754,9 @@ function RayfieldLibrary:CreateWindow(Settings)
 	-- Ganti text dengan image
 	MPrompt.Title.Visible = false -- Sembunyikan text
 	
+	-- SET POSISI AWAL KE KANAN (bukan tengah)
+	MPrompt.Position = UDim2.new(1, -80, 0, 20) -- Posisi kanan atas
+	
 	-- Buat ImageButton untuk logo
 	local LogoButton = Instance.new("ImageButton")
 	LogoButton.Name = "LogoButton"
@@ -1803,6 +1807,9 @@ elseif Settings.ShowText then
 	print("=== DEBUG: Creating ShowText (FIXED) ===")
 	MPrompt.Title.Text = 'Show Ui'..Settings.ShowText
 	
+	-- SET POSISI AWAL KE KANAN (bukan tengah) untuk text version
+	MPrompt.Position = UDim2.new(1, -140, 0, 20) -- Posisi kanan atas (lebih lebar untuk text)
+	
 	-- Set properties untuk text version
 	MPrompt.Active = true
 	MPrompt.ZIndex = 100
@@ -1810,12 +1817,6 @@ elseif Settings.ShowText then
 	print("=== DEBUG: About to call makeDraggablePrompt for text (FIXED) ===")
 	makeDraggablePrompt(MPrompt, MPrompt)
 end
-
-
-
-
-
-
 	LoadingFrame.Version.TextTransparency = 1
 	LoadingFrame.Title.Text = Settings.LoadingTitle or "Rayfield"
 	LoadingFrame.Subtitle.Text = Settings.LoadingSubtitle or "Interface Suite"
