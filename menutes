@@ -947,10 +947,6 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 		if renderStepped then renderStepped:Disconnect() end
 	end)
 end
-local savedLogoPosition = nil
-local isLogoDragged = false
-
--- MODIFIKASI FUNGSI makeDraggablePrompt untuk save posisi
 local function makeDraggablePrompt(object, dragObject)
 	print("=== DEBUG: makeDraggablePrompt called ===")
 	print("Object:", object.Name)
@@ -965,44 +961,51 @@ local function makeDraggablePrompt(object, dragObject)
 		offset += getService('GuiService'):GetGuiInset()
 	end
 
+	-- Pastikan dragObject bisa menerima input
 	if dragObject.ClassName == "ImageButton" then
 		dragObject.Active = true
 	end
 
-	print("=== Setting up Mouse Events (WITH POSITION SAVE) ===")
+	print("=== Setting up Mouse Events (FIXED) ===")
 	
+	-- GUNAKAN MouseButton1Down instead of InputBegan
 	local mouseDownConnection = dragObject.MouseButton1Down:Connect(function()
 		print("DEBUG: MouseButton1Down triggered - Starting drag")
 		dragging = true
-		isLogoDragged = true  -- MARK bahwa logo pernah di-drag
 		
 		local mousePos = UserInputService:GetMouseLocation()
 		local objPos = object.AbsolutePosition + object.AbsoluteSize * object.AnchorPoint
 		relative = objPos - mousePos
 		
+		print("DEBUG: Mouse Position:", mousePos)
+		print("DEBUG: Object Position:", objPos)
+		print("DEBUG: Relative:", relative)
 		print("DEBUG: Dragging set to:", dragging)
 	end)
 
+	-- GUNAKAN UserInputService untuk mouse release (global)
 	local inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
 			print("DEBUG: Mouse released - Stopping drag")
 			dragging = false
-			
-			-- SAVE POSISI TERAKHIR setelah drag selesai
-			savedLogoPosition = object.Position
-			print("DEBUG: Saved logo position:", savedLogoPosition)
 		end
 	end)
 
+	-- GUNAKAN UserInputService untuk mouse movement (global)
 	local inputChangedConnection = UserInputService.InputChanged:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+			print("DEBUG: Mouse moving while dragging")
 			local mousePos = UserInputService:GetMouseLocation()
 			local newPosition = mousePos + relative + offset
 			
+			print("DEBUG: New position:", newPosition)
 			object.Position = UDim2.fromOffset(newPosition.X, newPosition.Y)
 		end
 	end)
 
+	print("=== All connections set up successfully (FIXED) ===")
+
+	-- Cleanup connections
 	object.Destroying:Connect(function()
 		print("DEBUG: Cleaning up connections")
 		if mouseDownConnection then mouseDownConnection:Disconnect() end
@@ -1010,7 +1013,6 @@ local function makeDraggablePrompt(object, dragObject)
 		if inputChangedConnection then inputChangedConnection:Disconnect() end
 	end)
 end
-
 
 
 
@@ -1267,32 +1269,23 @@ end
 local function Hide(notify: boolean?)
 	if MPrompt then
 		MPrompt.Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-		
-		-- GUNAKAN POSISI TERSIMPAN atau default jika belum pernah di-drag
-		if isLogoDragged and savedLogoPosition then
-			print("DEBUG: Using saved position for hide:", savedLogoPosition)
-			MPrompt.Position = savedLogoPosition  -- GUNAKAN POSISI TERAKHIR
-		else
-			print("DEBUG: Using default position for hide")
-			MPrompt.Position = UDim2.new(0.5, 0, 0, -50)  -- POSISI DEFAULT
-		end
-		
+		MPrompt.Position = UDim2.new(0.5, 0, 0, -50)
 		MPrompt.Size = UDim2.new(0, 40, 0, 10)
 		MPrompt.BackgroundTransparency = 1
 		MPrompt.Title.TextTransparency = 1
 		
+		-- Jika ada logo, set transparansi logo juga
 		if MPrompt:FindFirstChild("LogoButton") then
 			MPrompt.LogoButton.ImageTransparency = 1
-			MPrompt.LogoButton.BackgroundTransparency = 1
 		end
 		
 		MPrompt.Visible = true
 	end
 
+
 	task.spawn(closeSearch)
 
 	Debounce = true
-
 	-- if notify then
 	-- 	if useMobilePrompt then 
 	-- 		RayfieldLibrary:Notify({Title = "#DJSSTORE", Content = "Open/Hide menu 'F' ", Duration = 7, Image = "bell-ring"})
@@ -1314,25 +1307,15 @@ local function Hide(notify: boolean?)
 
 if useMobilePrompt and MPrompt then
 		if MPrompt:FindFirstChild("LogoButton") then
-			-- ANIMATION tanpa mengubah posisi (gunakan posisi saat ini)
-			local currentPos = MPrompt.Position
-			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {
-				Size = UDim2.new(0, 60, 0, 60), 
-				Position = currentPos,  -- PERTAHANKAN POSISI SAAT INI
-				BackgroundTransparency = 1
-			}):Play()
+			-- Animasi untuk logo
+			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 60, 0, 60), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 1}):Play()
 			TweenService:Create(MPrompt.LogoButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.3}):Play()
 		else
 			-- Fallback ke text animation
-			local currentPos = MPrompt.Position
-			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {
-				Size = UDim2.new(0, 120, 0, 30), 
-				Position = currentPos,  -- PERTAHANKAN POSISI SAAT INI
-				BackgroundTransparency = 1
-			}):Play()
+			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 120, 0, 30), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 1}):Play()
 			TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0.3}):Play()
 		end
-
+	end
 
 
 
@@ -1463,37 +1446,12 @@ local function Unhide()
 
 if MPrompt then
 		if MPrompt:FindFirstChild("LogoButton") then
-			-- GUNAKAN POSISI TERSIMPAN atau default
-			local targetPosition
-			if isLogoDragged and savedLogoPosition then
-				targetPosition = savedLogoPosition
-				print("DEBUG: Restoring logo to saved position:", targetPosition)
-			else
-				targetPosition = UDim2.new(0.5, 0, 0, -50)
-				print("DEBUG: Using default position for unhide")
-			end
-			
-			-- Animasi menyembunyikan logo ke posisi tersimpan
-			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {
-				Size = UDim2.new(0, 40, 0, 10), 
-				Position = targetPosition,  -- KEMBALIKAN KE POSISI TERSIMPAN
-				BackgroundTransparency = 1
-			}):Play()
+			-- Animasi menyembunyikan logo
+			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 40, 0, 10), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 1}):Play()
 			TweenService:Create(MPrompt.LogoButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
 		else
 			-- Fallback ke text animation
-			local targetPosition
-			if isLogoDragged and savedLogoPosition then
-				targetPosition = savedLogoPosition
-			else
-				targetPosition = UDim2.new(0.5, 0, 0, -50)
-			end
-			
-			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {
-				Size = UDim2.new(0, 40, 0, 10), 
-				Position = targetPosition,  -- KEMBALIKAN KE POSISI TERSIMPAN
-				BackgroundTransparency = 1
-			}):Play()
+			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 40, 0, 10), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 1}):Play()
 			TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
 		end
 
@@ -1501,7 +1459,19 @@ if MPrompt then
 			task.wait(0.5)
 			MPrompt.Visible = false
 		end)
+		task.spawn(function()
+    while MPrompt and MPrompt.Parent do
+        MPrompt.BackgroundTransparency = 1
+        if MPrompt:FindFirstChild("LogoButton") then
+            MPrompt.LogoButton.BackgroundTransparency = 1
+        end
+        task.wait(0.1)
+    end
+end)
 	end
+
+
+
 	if Minimised then
 		task.spawn(Maximise)
 	end
