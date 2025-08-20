@@ -905,7 +905,7 @@ end
 local selectedEvent = nil
 local EventDropdown = nil
 
--- Event Coordinates Database
+-- Event Coordinates Database - DARI DATA ASLI GAME
 local eventCoordinates = {
     ["Shark Hunt"] = {
         Vector3.new(1.64999, 5, 2095.72),
@@ -919,82 +919,125 @@ local eventCoordinates = {
         Vector3.new(-1358.2, 5, 4100.55),
         Vector3.new(627.859, 5, 3798.08)
     },
+    ["Sparkling Cove"] = {
+        Vector3.new(195.378, 5, 2976.27)
+    },
+    ["Worm Hunt"] = {
+        Vector3.new(1591.55, 5, -105.92),
+        Vector3.new(-2450.6, 5, 139.731),
+        Vector3.new(-267.47, 5, 5188.53)
+    },
     ["Admin - Shocked"] = {
         Vector3.new(383, 5, 2452)
     },
+    ["Admin - Black Hole"] = {
+        Vector3.new(883, 5, 2542)
+    },
+    ["Admin - Ghost Worm"] = {
+        Vector3.new(-327, 5, 2422)
+    },
+    ["Admin - Meteor Rain"] = {
+        Vector3.new(383, 5, 2452)
+    },
+    -- Weather events tetap ke Weather Machine
     ["Storm"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
     ["Snow"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
     ["Wind"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
-    ["Cloudy"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
-    ["Worm Hunt"] = {Vector3.new(-2063.47021, 3.99908447, 3643.12622)} -- Tropical Grove dari log
+    ["Cloudy"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)}
 }
 
--- Function to detect active events - HANYA yang benar-benar aktif
+-- Function to detect active events - DETEKSI YANG BENAR
 local function detectActiveEvents()
     local activeEvents = {}
     
     local success, error = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
         
-        -- Method 1: Check Workspace Props - UTAMA (paling akurat dari log)
+        if not eventsFolder then
+            return
+        end
+        
+        -- METODE UTAMA: Cek apakah ada nilai aktif di folder Events
+        -- Untuk setiap event, cek apakah sedang aktif dengan berbagai cara
+        
+        -- 1. Shark Hunt - cek workspace props
         local workspaceProps = workspace:FindFirstChild("Props")
-        if workspaceProps then
-            -- Shark Hunt - hanya jika ada model "Shark Hunt" di Props
-            local sharkHuntProp = workspaceProps:FindFirstChild("Shark Hunt")
-            if sharkHuntProp and sharkHuntProp:IsA("Model") then
-                table.insert(activeEvents, "Shark Hunt 🟢")
-            end
-            
-            -- Ghost Shark Hunt
-            local ghostSharkProp = workspaceProps:FindFirstChild("Ghost Shark Hunt") 
-            if ghostSharkProp and ghostSharkProp:IsA("Model") then
-                table.insert(activeEvents, "Ghost Shark Hunt 🟢")
-            end
+        if workspaceProps and workspaceProps:FindFirstChild("Shark Hunt") then
+            table.insert(activeEvents, "Shark Hunt 🟢")
         end
         
-        -- Method 2: Check untuk Admin Event - cek lighting khusus
+        -- 2. Ghost Shark Hunt - cek workspace props
+        if workspaceProps and workspaceProps:FindFirstChild("Ghost Shark Hunt") then
+            table.insert(activeEvents, "Ghost Shark Hunt 🟢")
+        end
+        
+        -- 3. Sparkling Cove - cek lighting atau effects khusus
         local lighting = game:GetService("Lighting")
-        -- Admin Shocked event biasanya punya ambient sangat berbeda
-        if lighting.Ambient.R > 0.8 and lighting.Ambient.G > 0.8 and lighting.Ambient.B < 0.3 then
-            table.insert(activeEvents, "Admin - Shocked 🟢")
+        if lighting:FindFirstChild("SparklingCoveEffect") or 
+           (lighting.Brightness > 1.5 and lighting.ColorShift_Top.R > 0.8 and lighting.ColorShift_Top.G > 0.8) then
+            table.insert(activeEvents, "Sparkling Cove 🟢")
         end
         
-        -- Method 3: Check untuk Weather Events - deteksi ketat
-        -- Storm - brightness sangat tinggi (>= 3) dan ambient biru tinggi
-        if lighting.Brightness >= 3 and lighting.Ambient.B >= 0.55 then
-            table.insert(activeEvents, "Storm 🟢")
-        end
-        
-        -- Snow - semua colorshift sangat rendah (mendekati hitam)
-        if lighting.ColorShift_Top.R <= 0.05 and lighting.ColorShift_Top.G <= 0.05 and lighting.ColorShift_Top.B <= 0.05 then
-            table.insert(activeEvents, "Snow 🟢")
-        end
-        
-        -- Wind - cek atmosphere density tinggi
-        local atmosphere = lighting:FindFirstChild("Atmosphere")
-        if atmosphere and atmosphere.Density >= 0.8 then
-            table.insert(activeEvents, "Wind 🟢")
-        end
-        
-        -- Cloudy - brightness rendah dengan colorshift abu-abu
-        if lighting.Brightness <= 0.5 and lighting.ColorShift_Top.R >= 0.7 and lighting.ColorShift_Top.G >= 0.7 and lighting.ColorShift_Top.B >= 0.7 then
-            table.insert(activeEvents, "Cloudy 🟢")
-        end
-        
-        -- Method 4: Check GUI untuk Worm Hunt (lebih spesifik)
+        -- 4. Worm Hunt - cek workspace atau GUI
         local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+        local wormHuntActive = false
+        
         if PlayerGui then
             for _, gui in pairs(PlayerGui:GetDescendants()) do
                 if gui:IsA("TextLabel") and gui.Text then
-                    local text = gui.Text
-                    -- Hanya deteksi jika ada text yang tepat menunjukkan event aktif
-                    if string.match(text, "Worm Hunt.*active") or string.match(text, "Worm Hunt.*%d+:%d+") then
-                        if not string.find(table.concat(activeEvents), "Worm Hunt") then
-                            table.insert(activeEvents, "Worm Hunt 🟢")
-                        end
+                    if string.match(gui.Text, "Worm Hunt") and 
+                       (string.match(gui.Text, "%d+:%d+") or string.match(gui.Text, "ACTIVE")) then
+                        wormHuntActive = true
+                        break
                     end
                 end
             end
+        end
+        
+        if wormHuntActive or (workspaceProps and workspaceProps:FindFirstChild("Worm Hunt")) then
+            table.insert(activeEvents, "Worm Hunt 🟢")
+        end
+        
+        -- 5. Admin Events - cek area effects di workspace
+        local adminAreas = workspace:FindFirstChild("AdminAreas") or workspace:FindFirstChild("AdminEvents")
+        if adminAreas then
+            if adminAreas:FindFirstChild("Shocked") or adminAreas:FindFirstChild("ShockedArea") then
+                table.insert(activeEvents, "Admin - Shocked 🟢")
+            end
+            if adminAreas:FindFirstChild("BlackHole") or adminAreas:FindFirstChild("Black Hole") then
+                table.insert(activeEvents, "Admin - Black Hole 🟢")
+            end
+            if adminAreas:FindFirstChild("GhostWorm") or adminAreas:FindFirstChild("Ghost Worm") then
+                table.insert(activeEvents, "Admin - Ghost Worm 🟢")
+            end
+            if adminAreas:FindFirstChild("MeteorRain") or adminAreas:FindFirstChild("Meteor Rain") then
+                table.insert(activeEvents, "Admin - Meteor Rain 🟢")
+            end
+        end
+        
+        -- 6. Weather Events - deteksi dari lighting dengan threshold yang sangat spesifik
+        -- Storm - brightness tinggi dengan ambient biru dominan
+        if lighting.Brightness >= 3.5 and lighting.Ambient.B >= 0.6 and lighting.Ambient.R < 0.4 then
+            table.insert(activeEvents, "Storm 🟢")
+        end
+        
+        -- Snow - colorshift sangat rendah (hampir hitam)
+        if lighting.ColorShift_Top.R <= 0.03 and lighting.ColorShift_Top.G <= 0.03 and lighting.ColorShift_Top.B <= 0.03 and
+           lighting.Brightness < 1 then
+            table.insert(activeEvents, "Snow 🟢")
+        end
+        
+        -- Wind - atmosphere density tinggi
+        local atmosphere = lighting:FindFirstChild("Atmosphere")
+        if atmosphere and atmosphere.Density >= 1.0 and lighting.Brightness > 1.2 then
+            table.insert(activeEvents, "Wind 🟢")
+        end
+        
+        -- Cloudy - brightness rendah dengan colorshift abu-abu terang
+        if lighting.Brightness <= 0.4 and 
+           lighting.ColorShift_Top.R >= 0.8 and lighting.ColorShift_Top.G >= 0.8 and lighting.ColorShift_Top.B >= 0.8 then
+            table.insert(activeEvents, "Cloudy 🟢")
         end
         
     end)
@@ -1139,7 +1182,6 @@ local TeleportEventButton = TeleportTab:CreateButton({
         end
     end,
 })
-
 -- local CopyCoordsButton = TeleportTab:CreateButton({
 --     Name = "Copy Coords",
 --     Callback = function()
