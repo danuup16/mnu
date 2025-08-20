@@ -1039,30 +1039,18 @@ local function detectActiveEvents()
             table.insert(activeEvents, "Snow 🟢")
         end
         
-        -- Selalu tambahkan manual options
-        table.insert(activeEvents, "--- Manual Locations ---")
-        table.insert(activeEvents, "Shark Hunt Location 1")
-        table.insert(activeEvents, "Shark Hunt Location 2")
-        table.insert(activeEvents, "Shark Hunt Location 3")
-        table.insert(activeEvents, "Shark Hunt Location 4")
-        table.insert(activeEvents, "Ghost Shark Hunt Location 1")
-        table.insert(activeEvents, "Ghost Shark Hunt Location 2")
-        table.insert(activeEvents, "Ghost Shark Hunt Location 3")
-        table.insert(activeEvents, "Ghost Shark Hunt Location 4")
-        table.insert(activeEvents, "Admin - Shocked Area")
-        table.insert(activeEvents, "Worm Hunt - Tropical Grove")
-        table.insert(activeEvents, "Weather Machine")
+        -- Jangan tambahkan manual options, hanya event aktif saja
         
     end)
     
     if success then
         detectedEvents = activeEvents
-        if #detectedEvents <= 1 then -- Hanya ada "--- Manual Locations ---"
-            detectedEvents = {"No active events detected", "--- Manual Locations ---", "Shark Hunt Location 1", "Shark Hunt Location 2", "Shark Hunt Location 3", "Shark Hunt Location 4", "Ghost Shark Hunt Location 1", "Ghost Shark Hunt Location 2", "Ghost Shark Hunt Location 3", "Ghost Shark Hunt Location 4", "Admin - Shocked Area", "Worm Hunt - Tropical Grove", "Weather Machine"}
+        if #detectedEvents == 0 then
+            detectedEvents = {"No active events detected"}
         end
     else
         warn("Error detecting events: " .. tostring(error))
-        detectedEvents = {"Error detecting events", "--- Manual Locations ---", "Shark Hunt Location 1", "Shark Hunt Location 2", "Shark Hunt Location 3", "Shark Hunt Location 4", "Ghost Shark Hunt Location 1", "Ghost Shark Hunt Location 2", "Ghost Shark Hunt Location 3", "Ghost Shark Hunt Location 4", "Admin - Shocked Area", "Worm Hunt - Tropical Grove", "Weather Machine"}
+        detectedEvents = {"Error detecting events"}
     end
     
     return detectedEvents
