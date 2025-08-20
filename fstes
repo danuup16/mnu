@@ -1666,92 +1666,95 @@ local function getTierInfo(tier)
     return tierColors[tier] or {name = "Unknown", color = 0x808080}
 end
 
--- Function to send webhook
+-- Function to send webhook (Fixed for thread safety)
 local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
     if webhookURL == "" then
         return
     end
     
-    local success, error = pcall(function()
-        local player = game.Players.LocalPlayer
-        local tierInfo = getTierInfo(itemData.Tier or 1)
-        
-        -- Calculate rarity text
-        local rarityText = "Unknown"
-        if itemData.Probability and itemData.Probability.Chance then
-            local chance = itemData.Probability.Chance
-            rarityText = string.format("1 in %.0f", 1/chance)
-        end
-        
-        -- Item title with variant
-        local fullItemName = itemName
-        if isVariant and variantName then
-            fullItemName = variantName .. " " .. itemName
-        end
-        
-        local data = {
-            ["username"] = "Fish It Tracker",
-            ["embeds"] = {{
-                ["title"] = "🎣 New Fish Caught!",
-                ["color"] = tierInfo.color,
-                ["fields"] = {
-                    {
-                        ["name"] = "🟠 Fish Name",
-                        ["value"] = "**" .. fullItemName .. "**",
-                        ["inline"] = true
+    -- Use task.defer to ensure we're in the proper thread
+    task.defer(function()
+        local success, error = pcall(function()
+            local player = game.Players.LocalPlayer
+            local tierInfo = getTierInfo(itemData.Tier or 1)
+            
+            -- Calculate rarity text
+            local rarityText = "Unknown"
+            if itemData.Probability and itemData.Probability.Chance then
+                local chance = itemData.Probability.Chance
+                rarityText = string.format("1 in %.0f", 1/chance)
+            end
+            
+            -- Item title with variant
+            local fullItemName = itemName
+            if isVariant and variantName then
+                fullItemName = variantName .. " " .. itemName
+            end
+            
+            local data = {
+                ["username"] = "Fish It Tracker",
+                ["embeds"] = {{
+                    ["title"] = "🎣 New Fish Caught!",
+                    ["color"] = tierInfo.color,
+                    ["fields"] = {
+                        {
+                            ["name"] = "🟠 Fish Name",
+                            ["value"] = "**" .. fullItemName .. "**",
+                            ["inline"] = true
+                        },
+                        {
+                            ["name"] = "⚖️ Weight",
+                            ["value"] = formatWeight(itemData.Weight, weight),
+                            ["inline"] = true
+                        },
+                        {
+                            ["name"] = "💰 Sell Price",
+                            ["value"] = "**$" .. (itemData.SellPrice or 0) .. "**",
+                            ["inline"] = true
+                        },
+                        {
+                            ["name"] = "⭐ Tier",
+                            ["value"] = tierInfo.name .. " (T" .. (itemData.Tier or 1) .. ")",
+                            ["inline"] = true
+                        },
+                        {
+                            ["name"] = "🎲 Rarity",
+                            ["value"] = rarityText,
+                            ["inline"] = true
+                        },
+                        {
+                            ["name"] = "👤 Player",
+                            ["value"] = player.Name,
+                            ["inline"] = true
+                        }
                     },
-                    {
-                        ["name"] = "⚖️ Weight",
-                        ["value"] = formatWeight(itemData.Weight, weight),
-                        ["inline"] = true
+                    ["footer"] = {
+                        ["text"] = "Fish It Tracker • " .. os.date("%Y-%m-%d %H:%M:%S")
                     },
-                    {
-                        ["name"] = "💰 Sell Price",
-                        ["value"] = "**$" .. (itemData.SellPrice or 0) .. "**",
-                        ["inline"] = true
-                    },
-                    {
-                        ["name"] = "⭐ Tier",
-                        ["value"] = tierInfo.name .. " (T" .. (itemData.Tier or 1) .. ")",
-                        ["inline"] = true
-                    },
-                    {
-                        ["name"] = "🎲 Rarity",
-                        ["value"] = rarityText,
-                        ["inline"] = true
-                    },
-                    {
-                        ["name"] = "👤 Player",
-                        ["value"] = player.Name,
-                        ["inline"] = true
+                    ["thumbnail"] = {
+                        ["url"] = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=150&height=150&format=png"
                     }
-                },
-                ["footer"] = {
-                    ["text"] = "Fish It Tracker • " .. os.date("%Y-%m-%d %H:%M:%S")
-                },
-                ["thumbnail"] = {
-                    ["url"] = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=150&height=150&format=png"
-                }
-            }}
-        }
+                }}
+            }
+            
+            local headers = {["Content-Type"] = "application/json"}
+            local body = game:GetService("HttpService"):JSONEncode(data)
+            local req = http_request or request or syn.request or fluxus and fluxus.request
+            
+            if req then
+                req({
+                    Url = webhookURL,
+                    Method = "POST",
+                    Headers = headers,
+                    Body = body
+                })
+            end
+        end)
         
-        local headers = {["Content-Type"] = "application/json"}
-        local body = game:GetService("HttpService"):JSONEncode(data)
-        local req = http_request or request or syn.request or fluxus and fluxus.request
-        
-        if req then
-            req({
-                Url = webhookURL,
-                Method = "POST",
-                Headers = headers,
-                Body = body
-            })
+        if not success then
+            warn("Webhook error:", error)
         end
     end)
-    
-    if not success then
-        warn("Webhook error:", error)
-    end
 end
 
 -- Alternative method 1: Monitor using Replion (if available)
@@ -1956,6 +1959,7 @@ local function checkForNewFish()
                                 if itemInfo.Metadata and itemInfo.Metadata.Weight then
                                     weight = itemInfo.Metadata.Weight
                                 end
+                                
                                 
                                 sendWebhook(itemData.Name, itemData, weight, isVariant, variantName)
                                 
