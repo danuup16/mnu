@@ -901,7 +901,10 @@ end
          end
       end,
    })
-   local detectedEvents = {}
+   -- Tambahkan kode ini setelah NPCDropdown di TeleportTab
+
+-- Event Detection Variables
+local detectedEvents = {}
 local selectedEvent = nil
 local EventDropdown = nil
 
@@ -945,6 +948,8 @@ local eventCoordinates = {
     ["Wind"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
     ["Cloudy"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)}
 }
+
+-- Function to detect active events - DETEKSI YANG BENAR
 local function detectActiveEvents()
     local activeEvents = {}
     
@@ -955,18 +960,28 @@ local function detectActiveEvents()
         if not eventsFolder then
             return
         end
+        
+        -- METODE UTAMA: Cek apakah ada nilai aktif di folder Events
+        -- Untuk setiap event, cek apakah sedang aktif dengan berbagai cara
+        
+        -- 1. Shark Hunt - cek workspace props
         local workspaceProps = workspace:FindFirstChild("Props")
         if workspaceProps and workspaceProps:FindFirstChild("Shark Hunt") then
-            table.insert(activeEvents, "Shark Hunt ")
+            table.insert(activeEvents, "Shark Hunt 🟢")
         end
+        
+        -- 2. Ghost Shark Hunt - cek workspace props
         if workspaceProps and workspaceProps:FindFirstChild("Ghost Shark Hunt") then
-            table.insert(activeEvents, "Ghost Shark Hunt ")
+            table.insert(activeEvents, "Ghost Shark Hunt 🟢")
         end
+        
+        -- 3. Sparkling Cove - cek lighting atau effects khusus
         local lighting = game:GetService("Lighting")
         if lighting:FindFirstChild("SparklingCoveEffect") or 
            (lighting.Brightness > 1.5 and lighting.ColorShift_Top.R > 0.8 and lighting.ColorShift_Top.G > 0.8) then
-            table.insert(activeEvents, "Sparkling Cove ")
+            table.insert(activeEvents, "Sparkling Cove 🟢")
         end
+        
         -- 4. Worm Hunt - cek workspace atau GUI
         local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
         local wormHuntActive = false
@@ -1152,8 +1167,8 @@ local TeleportEventButton = TeleportTab:CreateButton({
             )
             
             player.Character.HumanoidRootPart.CFrame = CFrame.new(offsetPos)
-            flyToggle:set(true)
-            local cleanName = string.gsub(selectedEvent, " ", "")
+            
+            local cleanName = string.gsub(selectedEvent, " 🟢", "")
             Rayfield:Notify({
                 Title = "Teleported to " .. cleanName,
                 Content = "Event location reached!",
