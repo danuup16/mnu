@@ -1576,9 +1576,6 @@ local webhookURL = ""
 local isWebhookActive = false
 local trackedItems = {}
 local lastInventoryData = {}
-local sentItems = {} -- Track items yang sudah dikirim
-local debounceTimer = {} -- Debounce untuk mencegah spam
-local inventoryConnection = nil
 
 -- Webhook URL Input
 local WebhookInput = WebhookTab:CreateInput({
@@ -1598,48 +1595,7 @@ local WebhookInput = WebhookTab:CreateInput({
     end,
 })
 
--- Function to generate unique item key
-local function getItemKey(itemInfo)
-    local key = tostring(itemInfo.Id)
-    
-    if itemInfo.Metadata then
-        if itemInfo.Metadata.Weight then
-            key = key .. "_" .. tostring(itemInfo.Metadata.Weight)
-        end
-        if itemInfo.Metadata.VariantId then
-            key = key .. "_variant_" .. tostring(itemInfo.Metadata.VariantId)
-        end
-    end
-    
-    -- Add timestamp to make it more unique
-    key = key .. "_" .. tostring(math.floor(tick()))
-    
-    return key
-end
-
--- Function to check if item was recently sent
-local function wasRecentlySent(itemKey)
-    local currentTime = tick()
-    
-    -- Clean old entries (older than 30 seconds)
-    for key, timestamp in pairs(sentItems) do
-        if currentTime - timestamp > 30 then
-            sentItems[key] = nil
-        end
-    end
-    
-    -- Check if this item was sent recently (within 5 seconds)
-    if sentItems[itemKey] and (currentTime - sentItems[itemKey]) < 5 then
-        return true
-    end
-    
-    return false
-end
-
--- Function to mark item as sent
-local function markItemAsSent(itemKey)
-    sentItems[itemKey] = tick()
-end
+-- Function to get item data from ReplicatedStorage
 local function getItemData(itemId)
     local success, itemData = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1714,32 +1670,7 @@ local function getTierInfo(tier)
     return tierColors[tier] or {name = "Unknown", color = 0x808080}
 end
 
--- Function to send webhook with debounce
-local function sendWebhookDebounced(itemName, itemData, weight, isVariant, variantName, itemKey)
-    -- Check debounce
-    local currentTime = tick()
-    if debounceTimer[itemKey] and (currentTime - debounceTimer[itemKey]) < 3 then
-        print("Webhook blocked by debounce for:", itemName)
-        return
-    end
-    
-    -- Check if already sent recently
-    if wasRecentlySent(itemKey) then
-        print("Webhook blocked - item recently sent:", itemName)
-        return
-    end
-    
-    -- Set debounce timer
-    debounceTimer[itemKey] = currentTime
-    
-    -- Mark as sent
-    markItemAsSent(itemKey)
-    
-    -- Send webhook
-    sendWebhook(itemName, itemData, weight, isVariant, variantName)
-    
-    print("Webhook sent for:", itemName, "Key:", itemKey)
-end
+-- Function to send webhook
 local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
     if webhookURL == "" then
         return
@@ -1753,9 +1684,11 @@ local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
         local rarityText = "Unknown"
         if itemData.Probability and itemData.Probability.Chance then
             local chance = itemData.Probability.Chance
-            rarityText = string.format("1 in %.0f", 1/chance)
-        else
-            rarityText = "Common Item"
+            if chance >= 0.1 then
+                rarityText = string.format("1 in %.0f", 1/chance)
+            else
+                rarityText = string.format("1 in %.0f", 1/chance)
+            end
         end
         
         -- Item title with variant
@@ -1764,40 +1697,41 @@ local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
             fullItemName = variantName .. " " .. itemName
         end
         
-        -- Different emoji based on item type
-        local emoji = "📦"
-        if itemData.Type == "Fishes" then
-            emoji = "🎣"
-        elseif itemData.Type == "Potions" then
-            emoji = "🧪"
-        elseif itemData.Type == "Items" then
-            emoji = "📦"
-        elseif itemData.Type == "Fishing Rods" then
-            emoji = "🎣"
-        elseif itemData.Type == "Baits" then
-            emoji = "🪱"
-        end
-        
         local data = {
             ["username"] = "Fish It Tracker",
             ["avatar_url"] = "https://cdn.discordapp.com/attachments/1234567890/fish_icon.png",
             ["embeds"] = {{
-                ["title"] = emoji .. " New Item Obtained!",
+                ["title"] = "🎣 New Fish Caught!",
                 ["color"] = tierInfo.color,
                 ["fields"] = {
                     {
-                        ["name"] = "📝 Item Name",
+                        ["name"] = "🐟 Fish Name",
                         ["value"] = "**" .. fullItemName .. "**",
                         ["inline"] = true
                     },
                     {
-                        ["name"] = "📋 Item Type",
-                        ["value"] = itemData.Type or "Unknown",
+                        ["name"] = "⚖️ Weight",
+                        ["value"] = formatWeight(itemData.Weight, weight),
                         ["inline"] = true
                     },
                     {
                         ["name"] = "💰 Sell Price",
                         ["value"] = "**$" .. (itemData.SellPrice or 0) .. "**",
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "⭐ Tier",
+                        ["value"] = tierInfo.name .. " (T" .. (itemData.Tier or 1) .. ")",
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "🎲 Rarity",
+                        ["value"] = rarityText,
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "👤 Player",
+                        ["value"] = player.Name,
                         ["inline"] = true
                     }
                 },
@@ -1809,36 +1743,6 @@ local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
                 }
             }}
         }
-        
-        -- Add weight field only if it's a fish
-        if itemData.Type == "Fishes" and weight then
-            table.insert(data.embeds[1].fields, 3, {
-                ["name"] = "⚖️ Weight",
-                ["value"] = formatWeight(itemData.Weight, weight),
-                ["inline"] = true
-            })
-        end
-        
-        -- Add tier and rarity for fish
-        if itemData.Type == "Fishes" then
-            table.insert(data.embeds[1].fields, {
-                ["name"] = "⭐ Tier",
-                ["value"] = tierInfo.name .. " (T" .. (itemData.Tier or 1) .. ")",
-                ["inline"] = true
-            })
-            table.insert(data.embeds[1].fields, {
-                ["name"] = "🎲 Rarity",
-                ["value"] = rarityText,
-                ["inline"] = true
-            })
-        end
-        
-        -- Add player field
-        table.insert(data.embeds[1].fields, {
-            ["name"] = "👤 Player",
-            ["value"] = player.Name,
-            ["inline"] = true
-        })
         
         local headers = {["Content-Type"] = "application/json"}
         local body = game:GetService("HttpService"):JSONEncode(data)
@@ -1859,14 +1763,8 @@ local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
     end
 end
 
--- Function to monitor inventory changes with duplicate prevention
+-- Function to monitor inventory changes
 local function startInventoryMonitoring()
-    -- Disconnect existing connection
-    if inventoryConnection then
-        inventoryConnection:Disconnect()
-        inventoryConnection = nil
-    end
-    
     local success, error = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
         local Client = require(ReplicatedStorage.Packages.Replion).Client
@@ -1875,123 +1773,66 @@ local function startInventoryMonitoring()
         -- Wait for data replion
         local dataReplion = Client:WaitReplion("Data")
         
-        -- Get initial inventory state
-        local currentInventory = dataReplion:Get("Inventory") or {}
-        lastInventoryData = currentInventory
-        
-        print("🎣 Webhook monitoring started!")
-        
-        local function getTableKeys(tbl)
-            local keys = {}
-            for k, _ in pairs(tbl) do
-                table.insert(keys, tostring(k))
-            end
-            return keys
-        end
-        
-        print("Initial inventory categories:", table.concat(getTableKeys(currentInventory or {}), ", "))
-        
-        -- Monitor inventory changes with debounce
-        inventoryConnection = dataReplion:OnChange("Inventory", function(newInventory, oldInventory)
+        -- Monitor inventory changes
+        dataReplion:OnChange("Inventory", function(newInventory, oldInventory)
             if not isWebhookActive or not newInventory then
                 return
             end
             
-            print("📦 Inventory changed!")
-            print("Categories found:", table.concat(getTableKeys(newInventory), ", "))
-            
-            -- Use oldInventory or lastInventoryData
-            local previousInventory = oldInventory or lastInventoryData
-            
-            -- Wait a bit to ensure data is stable
-            task.wait(0.2) -- Reduced wait time
-            
-            -- Check for new items in ALL categories (no filtering)
+            -- Check for new items
             for category, items in pairs(newInventory) do
                 if type(items) == "table" then
-                    print("🔍 Checking category:", category, "Items count:", #getTableKeys(items))
-                    
                     for uuid, itemInfo in pairs(items) do
-                        if itemInfo and itemInfo.Id then -- Only process valid items
-                            local isNewItem = false
-                            local previousItem = nil
-                            
-                            -- Check if item existed before
-                            if previousInventory and previousInventory[category] and previousInventory[category][uuid] then
-                                previousItem = previousInventory[category][uuid]
-                                
-                                -- Check if quantity increased (new item caught/obtained)
-                                if itemInfo.Quantity and previousItem.Quantity then
-                                    if itemInfo.Quantity > previousItem.Quantity then
-                                        isNewItem = true
-                                        print("📈 Quantity increased for item:", itemInfo.Id, "Old:", previousItem.Quantity, "New:", itemInfo.Quantity)
-                                    end
-                                end
-                            else
-                                -- Completely new item
+                        -- Check if this is a new item
+                        local isNewItem = false
+                        
+                        if not oldInventory or not oldInventory[category] or not oldInventory[category][uuid] then
+                            isNewItem = true
+                        elseif oldInventory[category][uuid].Quantity and itemInfo.Quantity then
+                            -- Check if quantity increased
+                            if itemInfo.Quantity > oldInventory[category][uuid].Quantity then
                                 isNewItem = true
-                                print("🆕 New item detected:", itemInfo.Id)
                             end
+                        end
+                        
+                        if isNewItem and itemInfo.Id then
+                            -- Get item data
+                            local itemData = getItemData(itemInfo.Id)
                             
-                            if isNewItem then
-                                -- Get item data
-                                local itemData = getItemData(itemInfo.Id)
+                            if itemData and itemData.Type == "Fishes" then
+                                -- Check for variants
+                                local isVariant = false
+                                local variantName = nil
                                 
-                                if itemData then
-                                    print("📋 Item data found:", itemData.Name, "Type:", itemData.Type)
-                                    
-                                    -- Generate unique key for this specific item
-                                    local itemKey = getItemKey(itemInfo)
-                                    
-                                    -- Check for variants
-                                    local isVariant = false
-                                    local variantName = nil
-                                    
-                                    if itemInfo.Metadata and itemInfo.Metadata.VariantId then
-                                        local variantData = ItemUtility:GetVariantData(itemInfo.Metadata.VariantId)
-                                        if variantData and variantData.Data then
-                                            isVariant = true
-                                            variantName = variantData.Data.Name
-                                            print("✨ Variant found:", variantName)
-                                        end
+                                if itemInfo.Metadata and itemInfo.Metadata.VariantId then
+                                    local variantData = ItemUtility:GetVariantData(itemInfo.Metadata.VariantId)
+                                    if variantData and variantData.Data then
+                                        isVariant = true
+                                        variantName = variantData.Data.Name
                                     end
-                                    
-                                    -- Get weight from metadata
-                                    local weight = nil
-                                    if itemInfo.Metadata and itemInfo.Metadata.Weight then
-                                        weight = itemInfo.Metadata.Weight
-                                        print("⚖️ Weight:", weight)
-                                    end
-                                    
-                                    -- Get quantity
-                                    local quantity = itemInfo.Quantity or 1
-                                    print("🔢 Quantity:", quantity)
-                                    
-                                    -- Send webhook for ALL items (no type filter)
-                                    print("📤 Sending webhook for:", itemData.Name)
-                                    
-                                    task.spawn(function()
-                                        sendWebhookDebounced(itemData.Name, itemData, weight, isVariant, variantName, itemKey)
-                                        
-                                        -- Show notification
-                                        Rayfield:Notify({
-                                            Title = "Item Detected!",
-                                            Content = (variantName and (variantName .. " ") or "") .. itemData.Name .. " sent to webhook",
-                                            Duration = 5,
-                                            Image = "bell-ring",
-                                        })
-                                    end)
-                                else
-                                    print("❌ No item data found for ID:", itemInfo.Id)
                                 end
+                                
+                                -- Get weight from metadata
+                                local weight = nil
+                                if itemInfo.Metadata and itemInfo.Metadata.Weight then
+                                    weight = itemInfo.Metadata.Weight
+                                end
+                                
+                                -- Send webhook
+                                sendWebhook(itemData.Name, itemData, weight, isVariant, variantName)
+                                
+                                -- Show notification
+                                Rayfield:Notify({
+                                    Title = "Fish Detected!",
+                                    Content = (variantName and (variantName .. " ") or "") .. itemData.Name .. " sent to webhook",
+                                    Duration = 5,
+                                    Image = "bell-ring",
+                                })
                             end
                         end
                     end
                 end
             end
-            
-            -- Update last inventory data
-            lastInventoryData = newInventory
         end)
         
     end)
@@ -2027,11 +1868,6 @@ local WebhookToggle = WebhookTab:CreateToggle({
                 return
             end
             
-            -- Clear tracking data when starting
-            sentItems = {}
-            debounceTimer = {}
-            lastInventoryData = {}
-            
             -- Start monitoring
             startInventoryMonitoring()
             
@@ -2042,16 +1878,6 @@ local WebhookToggle = WebhookTab:CreateToggle({
                 Image = "bell-ring",
             })
         else
-            -- Stop monitoring
-            if inventoryConnection then
-                inventoryConnection:Disconnect()
-                inventoryConnection = nil
-            end
-            
-            -- Clear tracking data
-            sentItems = {}
-            debounceTimer = {}
-            
             Rayfield:Notify({
                 Title = "Webhook Tracking Stopped",
                 Content = "",
