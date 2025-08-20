@@ -901,7 +901,10 @@ end
          end
       end,
    })
-   local detectedEvents = {}
+   -- Tambahkan kode ini setelah NPCDropdown di TeleportTab
+
+-- Event Detection Variables
+local detectedEvents = {}
 local selectedEvent = nil
 local EventDropdown = nil
 
@@ -925,82 +928,115 @@ local eventCoordinates = {
     ["Storm"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
     ["Snow"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
     ["Wind"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
-    ["Cloudy"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)}
+    ["Cloudy"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
+    ["Worm Hunt"] = {Vector3.new(-2063.47021, 3.99908447, 3643.12622)} -- Tropical Grove dari log
 }
 
--- Function to detect active events
+-- Function to detect active events berdasarkan log console
 local function detectActiveEvents()
     local activeEvents = {}
     
     local success, error = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
         
-        if eventsFolder then
-            -- Check semua event yang ada di folder Events
-            for _, eventObj in pairs(eventsFolder:GetChildren()) do
-                local eventName = eventObj.Name
-                local isActive = false
-                
-                -- Method 1: Check workspace untuk indicators
-                if eventName == "Shark Hunt" then
-                    local sharks = workspace:FindFirstChild("Sharks") or workspace:FindFirstChild("SharkHunt")
-                    if sharks and #sharks:GetChildren() > 0 then
-                        isActive = true
-                    end
-                elseif eventName == "Ghost Shark Hunt" then
-                    local ghostSharks = workspace:FindFirstChild("GhostSharks") or workspace:FindFirstChild("GhostSharkHunt")
-                    if ghostSharks and #ghostSharks:GetChildren() > 0 then
-                        isActive = true
-                    end
-                elseif eventName == "Admin - Shocked" then
-                    local shockedArea = workspace:FindFirstChild("ShockedArea") or workspace:FindFirstChild("Lightning")
-                    if shockedArea then
-                        isActive = true
-                    end
-                end
-                
-                -- Method 2: Check lighting untuk weather events
-                local lighting = game:GetService("Lighting")
-                if eventName == "Storm" then
-                    if lighting.ColorShift_Top.B > 0.8 or lighting.Ambient.B > 0.5 then
-                        isActive = true
-                    end
-                elseif eventName == "Snow" then
-                    if lighting.ColorShift_Top.R < 0.7 and lighting.ColorShift_Top.G < 0.7 then
-                        isActive = true
-                    end
-                elseif eventName == "Wind" then
-                    local atmosphere = lighting:FindFirstChild("Atmosphere")
-                    if atmosphere and atmosphere.Density > 0.5 then
-                        isActive = true
-                    end
-                elseif eventName == "Cloudy" then
-                    if lighting.Brightness < 1 and lighting.ColorShift_Top.R > 0.8 then
-                        isActive = true
-                    end
-                end
-                
-                -- Method 3: Check melalui network (backup method)
-                if not isActive then
-                    local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
-                    if netFolder and netFolder:FindFirstChild("net") then
-                        local net = netFolder.net
-                        local eventCheck = net:FindFirstChild("RF/GetActiveEvents") or net:FindFirstChild("RF/GetCurrentEvent")
-                        if eventCheck then
-                            local result = eventCheck:InvokeServer()
-                            if result and (result.Name == eventName or (type(result) == "table" and result[eventName])) then
-                                isActive = true
-                            end
-                        end
-                    end
-                end
-                
-                -- Jika event aktif, tambahkan ke list
-                if isActive then
-                    table.insert(activeEvents, eventName .. " 🟢")
+        -- Method 1: Check Workspace Props untuk Shark Hunt (dari log: Workspace.Props.Shark Hunt)
+        local workspaceProps = workspace:FindFirstChild("Props")
+        if workspaceProps then
+            local sharkHuntProp = workspaceProps:FindFirstChild("Shark Hunt")
+            if sharkHuntProp then
+                table.insert(activeEvents, "Shark Hunt 🟢")
+            end
+            
+            local ghostSharkProp = workspaceProps:FindFirstChild("Ghost Shark Hunt")
+            if ghostSharkProp then
+                table.insert(activeEvents, "Ghost Shark Hunt 🟢")
+            end
+        end
+        
+        -- Method 2: Check VFX untuk event effects (dari log: ReplicatedStorage.VFX.Shark Obtained)
+        local vfxFolder = ReplicatedStorage:FindFirstChild("VFX")
+        if vfxFolder then
+            if vfxFolder:FindFirstChild("Shark Obtained") then
+                if not string.find(table.concat(activeEvents), "Shark Hunt") then
+                    table.insert(activeEvents, "Shark Hunt 🟢")
                 end
             end
+            
+            if vfxFolder:FindFirstChild("Ghost Shark Obtained") then
+                if not string.find(table.concat(activeEvents), "Ghost Shark Hunt") then
+                    table.insert(activeEvents, "Ghost Shark Hunt 🟢")
+                end
+            end
+        end
+        
+        -- Method 3: Check GUI Text untuk event info (dari log: GUI Text: Shark Hunt)
+        local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+        if PlayerGui then
+            for _, gui in pairs(PlayerGui:GetDescendants()) do
+                if gui:IsA("TextLabel") or gui:IsA("TextButton") then
+                    local text = gui.Text or ""
+                    
+                    -- Check untuk "Shark Hunt" di GUI
+                    if string.find(text, "Shark Hunt") and not string.find(table.concat(activeEvents), "Shark Hunt") then
+                        table.insert(activeEvents, "Shark Hunt 🟢")
+                    end
+                    
+                    -- Check untuk "Ghost Shark Hunt" di GUI  
+                    if string.find(text, "Ghost Shark Hunt") and not string.find(table.concat(activeEvents), "Ghost Shark Hunt") then
+                        table.insert(activeEvents, "Ghost Shark Hunt 🟢")
+                    end
+                    
+                    -- Check untuk "Worm Hunt" (dari log: New event "Worm Hunt")
+                    if string.find(text, "Worm Hunt") and not string.find(table.concat(activeEvents), "Worm Hunt") then
+                        table.insert(activeEvents, "Worm Hunt 🟢")
+                    end
+                    
+                    -- Check untuk "Admin Event" (dari log: Admin Event Fish)
+                    if (string.find(text, "Admin Event") or string.find(text, "Admin Fish")) and not string.find(table.concat(activeEvents), "Admin") then
+                        table.insert(activeEvents, "Admin - Shocked 🟢")
+                    end
+                end
+            end
+        end
+        
+        -- Method 4: Check Controllers.EventController (dari log)
+        local eventController = ReplicatedStorage:FindFirstChild("Controllers")
+        if eventController then
+            eventController = eventController:FindFirstChild("EventController")
+            if eventController then
+                -- Check untuk OnEventAdded/OnEventRemoved
+                local onEventAdded = eventController:FindFirstChild("OnEventAdded")
+                local onEventRemoved = eventController:FindFirstChild("OnEventRemoved")
+                
+                if onEventAdded then
+                    -- Ada event yang baru ditambahkan
+                    if not string.find(table.concat(activeEvents), "🟢") then
+                        table.insert(activeEvents, "Active Event Detected 🟢")
+                    end
+                end
+            end
+        end
+        
+        -- Method 5: Check Shared.PlayerEvents (dari log)
+        local sharedFolder = ReplicatedStorage:FindFirstChild("Shared")
+        if sharedFolder then
+            local playerEvents = sharedFolder:FindFirstChild("PlayerEvents")
+            if playerEvents and #playerEvents:GetChildren() > 0 then
+                table.insert(activeEvents, "Player Event Active 🟢")
+            end
+        end
+        
+        -- Method 6: Check lighting untuk weather events
+        local lighting = game:GetService("Lighting")
+        
+        -- Storm detection (brightness tinggi dan ambient biru)
+        if lighting.Brightness > 2 and lighting.Ambient.B > 0.5 then
+            table.insert(activeEvents, "Storm 🟢")
+        end
+        
+        -- Snow detection (colorshift rendah)
+        if lighting.ColorShift_Top.R < 0.1 and lighting.ColorShift_Top.G < 0.1 and lighting.ColorShift_Top.B < 0.1 then
+            table.insert(activeEvents, "Snow 🟢")
         end
         
         -- Selalu tambahkan manual options
@@ -1014,18 +1050,19 @@ local function detectActiveEvents()
         table.insert(activeEvents, "Ghost Shark Hunt Location 3")
         table.insert(activeEvents, "Ghost Shark Hunt Location 4")
         table.insert(activeEvents, "Admin - Shocked Area")
+        table.insert(activeEvents, "Worm Hunt - Tropical Grove")
         table.insert(activeEvents, "Weather Machine")
         
     end)
     
     if success then
         detectedEvents = activeEvents
-        if #detectedEvents == 0 then
-            detectedEvents = {"No active events detected"}
+        if #detectedEvents <= 1 then -- Hanya ada "--- Manual Locations ---"
+            detectedEvents = {"No active events detected", "--- Manual Locations ---", "Shark Hunt Location 1", "Shark Hunt Location 2", "Shark Hunt Location 3", "Shark Hunt Location 4", "Ghost Shark Hunt Location 1", "Ghost Shark Hunt Location 2", "Ghost Shark Hunt Location 3", "Ghost Shark Hunt Location 4", "Admin - Shocked Area", "Worm Hunt - Tropical Grove", "Weather Machine"}
         end
     else
         warn("Error detecting events: " .. tostring(error))
-        detectedEvents = {"Error detecting events"}
+        detectedEvents = {"Error detecting events", "--- Manual Locations ---", "Shark Hunt Location 1", "Shark Hunt Location 2", "Shark Hunt Location 3", "Shark Hunt Location 4", "Ghost Shark Hunt Location 1", "Ghost Shark Hunt Location 2", "Ghost Shark Hunt Location 3", "Ghost Shark Hunt Location 4", "Admin - Shocked Area", "Worm Hunt - Tropical Grove", "Weather Machine"}
     end
     
     return detectedEvents
@@ -1051,6 +1088,8 @@ local function getEventCoordinates(selection)
         return eventCoordinates["Admin - Shocked"][1]
     elseif selection == "Weather Machine" then
         return eventCoordinates["Storm"][1] -- Weather Machine location
+    elseif selection == "Worm Hunt - Tropical Grove" then
+        return eventCoordinates["Worm Hunt"][1]
     end
     
     -- Handle active events
