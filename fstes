@@ -659,7 +659,6 @@ local function startAutoFarm()
       player.Character.HumanoidRootPart.CFrame = targetCFrame
       wait(2)
       mancing:Set(true)
-      
       spawn(function()
          while isAutoFarmActive do
             wait(5)
@@ -940,6 +939,11 @@ local eventCoordinates = {
     ["Admin - Meteor Rain"] = {
         Vector3.new(383, 5, 2452)
     },
+    -- Weather events tetap ke Weather Machine
+    ["Storm"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
+    ["Snow"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
+    ["Wind"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
+    ["Cloudy"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)}
 }
 local function detectActiveEvents()
     local activeEvents = {}
@@ -963,6 +967,7 @@ local function detectActiveEvents()
            (lighting.Brightness > 1.5 and lighting.ColorShift_Top.R > 0.8 and lighting.ColorShift_Top.G > 0.8) then
             table.insert(activeEvents, "Sparkling Cove ")
         end
+        -- 4. Worm Hunt - cek workspace atau GUI
         local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
         local wormHuntActive = false
         
@@ -979,48 +984,48 @@ local function detectActiveEvents()
         end
         
         if wormHuntActive or (workspaceProps and workspaceProps:FindFirstChild("Worm Hunt")) then
-            table.insert(activeEvents, "Worm Hunt ")
+            table.insert(activeEvents, "Worm Hunt 🟢")
         end
         
         -- 5. Admin Events - cek area effects di workspace
         local adminAreas = workspace:FindFirstChild("AdminAreas") or workspace:FindFirstChild("AdminEvents")
         if adminAreas then
             if adminAreas:FindFirstChild("Shocked") or adminAreas:FindFirstChild("ShockedArea") then
-                table.insert(activeEvents, "Admin - Shocked ")
+                table.insert(activeEvents, "Admin - Shocked 🟢")
             end
             if adminAreas:FindFirstChild("BlackHole") or adminAreas:FindFirstChild("Black Hole") then
-                table.insert(activeEvents, "Admin - Black Hole ")
+                table.insert(activeEvents, "Admin - Black Hole 🟢")
             end
             if adminAreas:FindFirstChild("GhostWorm") or adminAreas:FindFirstChild("Ghost Worm") then
-                table.insert(activeEvents, "Admin - Ghost Worm ")
+                table.insert(activeEvents, "Admin - Ghost Worm 🟢")
             end
             if adminAreas:FindFirstChild("MeteorRain") or adminAreas:FindFirstChild("Meteor Rain") then
-                table.insert(activeEvents, "Admin - Meteor Rain ")
+                table.insert(activeEvents, "Admin - Meteor Rain 🟢")
             end
         end
         
         -- 6. Weather Events - deteksi dari lighting dengan threshold yang sangat spesifik
         -- Storm - brightness tinggi dengan ambient biru dominan
         if lighting.Brightness >= 3.5 and lighting.Ambient.B >= 0.6 and lighting.Ambient.R < 0.4 then
-            table.insert(activeEvents, "Storm ")
+            table.insert(activeEvents, "Storm 🟢")
         end
         
         -- Snow - colorshift sangat rendah (hampir hitam)
         if lighting.ColorShift_Top.R <= 0.03 and lighting.ColorShift_Top.G <= 0.03 and lighting.ColorShift_Top.B <= 0.03 and
            lighting.Brightness < 1 then
-            table.insert(activeEvents, "Snow ")
+            table.insert(activeEvents, "Snow 🟢")
         end
         
         -- Wind - atmosphere density tinggi
         local atmosphere = lighting:FindFirstChild("Atmosphere")
         if atmosphere and atmosphere.Density >= 1.0 and lighting.Brightness > 1.2 then
-            table.insert(activeEvents, "Wind ")
+            table.insert(activeEvents, "Wind 🟢")
         end
         
         -- Cloudy - brightness rendah dengan colorshift abu-abu terang
         if lighting.Brightness <= 0.4 and 
            lighting.ColorShift_Top.R >= 0.8 and lighting.ColorShift_Top.G >= 0.8 and lighting.ColorShift_Top.B >= 0.8 then
-            table.insert(activeEvents, "Cloudy ")
+            table.insert(activeEvents, "Cloudy 🟢")
         end
         
     end)
@@ -1041,7 +1046,7 @@ end
 -- Function to get coordinates based on selection
 local function getEventCoordinates(selection)
     -- Clean selection name
-    local cleanName = string.gsub(selection, " ", "")
+    local cleanName = string.gsub(selection, " 🟢", "")
     
     -- Handle active events berdasarkan nama event
     if eventCoordinates[cleanName] then
@@ -1098,7 +1103,7 @@ local RefreshEventsButton = TeleportTab:CreateButton({
         
         local activeCount = 0
         for _, event in ipairs(detectedEvents) do
-            if string.find(event, "") then
+            if string.find(event, "🟢") then
                 activeCount = activeCount + 1
             end
         end
@@ -1136,6 +1141,7 @@ local TeleportEventButton = TeleportTab:CreateButton({
             })
             return
         end
+        
         local targetPos = getEventCoordinates(selectedEvent)
         if targetPos then
             -- Add small random offset to avoid collision
@@ -1144,6 +1150,7 @@ local TeleportEventButton = TeleportTab:CreateButton({
                 0,
                 math.random(-5, 5)
             )
+            
             player.Character.HumanoidRootPart.CFrame = CFrame.new(offsetPos)
             flyToggle:set(true)
             local cleanName = string.gsub(selectedEvent, " ", "")
