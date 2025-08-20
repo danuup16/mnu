@@ -659,6 +659,7 @@ local function startAutoFarm()
       player.Character.HumanoidRootPart.CFrame = targetCFrame
       wait(2)
       mancing:Set(true)
+      
       spawn(function()
          while isAutoFarmActive do
             wait(5)
@@ -903,12 +904,9 @@ end
    })
    -- Tambahkan kode ini setelah NPCDropdown di TeleportTab
 
--- Event Detection Variables
 local detectedEvents = {}
 local selectedEvent = nil
 local EventDropdown = nil
-
--- Event Coordinates Database - DARI DATA ASLI GAME
 local eventCoordinates = {
     ["Shark Hunt"] = {
         Vector3.new(1.64999, 5, 2095.72),
@@ -942,14 +940,12 @@ local eventCoordinates = {
     ["Admin - Meteor Rain"] = {
         Vector3.new(383, 5, 2452)
     },
-    -- Weather events tetap ke Weather Machine
     ["Storm"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
     ["Snow"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
     ["Wind"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
     ["Cloudy"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)}
 }
 
--- Function to detect active events - DETEKSI YANG BENAR
 local function detectActiveEvents()
     local activeEvents = {}
     
@@ -960,32 +956,20 @@ local function detectActiveEvents()
         if not eventsFolder then
             return
         end
-        
-        -- METODE UTAMA: Cek apakah ada nilai aktif di folder Events
-        -- Untuk setiap event, cek apakah sedang aktif dengan berbagai cara
-        
-        -- 1. Shark Hunt - cek workspace props
         local workspaceProps = workspace:FindFirstChild("Props")
         if workspaceProps and workspaceProps:FindFirstChild("Shark Hunt") then
             table.insert(activeEvents, "Shark Hunt 🟢")
         end
-        
-        -- 2. Ghost Shark Hunt - cek workspace props
         if workspaceProps and workspaceProps:FindFirstChild("Ghost Shark Hunt") then
             table.insert(activeEvents, "Ghost Shark Hunt 🟢")
         end
-        
-        -- 3. Sparkling Cove - cek lighting atau effects khusus
         local lighting = game:GetService("Lighting")
         if lighting:FindFirstChild("SparklingCoveEffect") or 
            (lighting.Brightness > 1.5 and lighting.ColorShift_Top.R > 0.8 and lighting.ColorShift_Top.G > 0.8) then
             table.insert(activeEvents, "Sparkling Cove 🟢")
         end
-        
-        -- 4. Worm Hunt - cek workspace atau GUI
         local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
         local wormHuntActive = false
-        
         if PlayerGui then
             for _, gui in pairs(PlayerGui:GetDescendants()) do
                 if gui:IsA("TextLabel") and gui.Text then
@@ -1001,8 +985,6 @@ local function detectActiveEvents()
         if wormHuntActive or (workspaceProps and workspaceProps:FindFirstChild("Worm Hunt")) then
             table.insert(activeEvents, "Worm Hunt 🟢")
         end
-        
-        -- 5. Admin Events - cek area effects di workspace
         local adminAreas = workspace:FindFirstChild("AdminAreas") or workspace:FindFirstChild("AdminEvents")
         if adminAreas then
             if adminAreas:FindFirstChild("Shocked") or adminAreas:FindFirstChild("ShockedArea") then
@@ -1018,26 +1000,17 @@ local function detectActiveEvents()
                 table.insert(activeEvents, "Admin - Meteor Rain 🟢")
             end
         end
-        
-        -- 6. Weather Events - deteksi dari lighting dengan threshold yang sangat spesifik
-        -- Storm - brightness tinggi dengan ambient biru dominan
         if lighting.Brightness >= 3.5 and lighting.Ambient.B >= 0.6 and lighting.Ambient.R < 0.4 then
             table.insert(activeEvents, "Storm 🟢")
         end
-        
-        -- Snow - colorshift sangat rendah (hampir hitam)
         if lighting.ColorShift_Top.R <= 0.03 and lighting.ColorShift_Top.G <= 0.03 and lighting.ColorShift_Top.B <= 0.03 and
            lighting.Brightness < 1 then
             table.insert(activeEvents, "Snow 🟢")
         end
-        
-        -- Wind - atmosphere density tinggi
         local atmosphere = lighting:FindFirstChild("Atmosphere")
         if atmosphere and atmosphere.Density >= 1.0 and lighting.Brightness > 1.2 then
             table.insert(activeEvents, "Wind 🟢")
         end
-        
-        -- Cloudy - brightness rendah dengan colorshift abu-abu terang
         if lighting.Brightness <= 0.4 and 
            lighting.ColorShift_Top.R >= 0.8 and lighting.ColorShift_Top.G >= 0.8 and lighting.ColorShift_Top.B >= 0.8 then
             table.insert(activeEvents, "Cloudy 🟢")
@@ -1048,47 +1021,32 @@ local function detectActiveEvents()
     if success then
         detectedEvents = activeEvents
         if #detectedEvents == 0 then
-            detectedEvents = {"No active events detected"}
+            detectedEvents = {"Nothing"}
         end
     else
-        warn("Error detecting events: " .. tostring(error))
-        detectedEvents = {"Error detecting events"}
+        warn("Error events: " .. tostring(error))
+        detectedEvents = {"Error events"}
     end
     
     return detectedEvents
 end
 
--- Function to get coordinates based on selection
 local function getEventCoordinates(selection)
-    -- Clean selection name - hapus emoji dan spasi extra
     local cleanName = string.gsub(selection, " 🟢", "")
-    cleanName = string.gsub(cleanName, "^%s*(.-)%s*$", "%1") -- trim whitespace
-    
-    -- Debug print untuk troubleshooting
-    print("Looking for coordinates for:", "'" .. cleanName .. "'")
-    print("Available events:", table.concat({"Shark Hunt", "Ghost Shark Hunt", "Sparkling Cove", "Worm Hunt", "Admin - Shocked", "Admin - Black Hole", "Admin - Ghost Worm", "Admin - Meteor Rain", "Storm", "Snow", "Wind", "Cloudy"}, ", "))
-    
-    -- Handle active events berdasarkan nama event yang tepat
+    cleanName = string.gsub(cleanName, "^%s*(.-)%s*$", "%1") 
     if eventCoordinates[cleanName] then
         local coords = eventCoordinates[cleanName]
-        print("Found coordinates for", cleanName, "- Total locations:", #coords)
         
         if #coords > 1 then
-            -- Return random location for multi-location events
             local selectedCoord = coords[math.random(1, #coords)]
-            print("Selected random location:", selectedCoord)
             return selectedCoord
         else
-            print("Using single location:", coords[1])
             return coords[1]
         end
     else
-        print("No coordinates found for:", cleanName)
-        -- Coba cari dengan partial matching jika exact match gagal
         for eventName, coords in pairs(eventCoordinates) do
             if string.find(string.lower(eventName), string.lower(cleanName)) or 
                string.find(string.lower(cleanName), string.lower(eventName)) then
-                print("Found partial match:", eventName)
                 if #coords > 1 then
                     return coords[math.random(1, #coords)]
                 else
@@ -1098,11 +1056,8 @@ local function getEventCoordinates(selection)
         end
     end
     
-    print("No coordinates found at all for:", cleanName)
     return nil
 end
-
--- Create Event Dropdown
 detectActiveEvents() -- Initial detection
 EventDropdown = TeleportTab:CreateDropdown({
     Name = "Active Events & Locations",
@@ -1124,13 +1079,10 @@ EventDropdown = TeleportTab:CreateDropdown({
         end
     end,
 })
-
--- Refresh Button
 local RefreshEventsButton = TeleportTab:CreateButton({
-    Name = "🔄 Refresh Event List",
+    Name = "Refresh Events",
     Callback = function()
         detectActiveEvents()
-        
         if EventDropdown then
             local options = {"Select Event/Location..."}
             for _, event in ipairs(detectedEvents) do
@@ -1140,78 +1092,34 @@ local RefreshEventsButton = TeleportTab:CreateButton({
             EventDropdown:Set({"Select Event/Location..."})
             selectedEvent = nil
         end
-        
         local activeCount = 0
         for _, event in ipairs(detectedEvents) do
             if string.find(event, "🟢") then
                 activeCount = activeCount + 1
             end
         end
-        
-        Rayfield:Notify({
-            Title = "Event List Refreshed",
-            Content = activeCount .. " active events detected",
-            Duration = 3,
-            Image = "bell-ring",
-        })
     end,
 })
-
--- Teleport to Selected Event Button
 local TeleportEventButton = TeleportTab:CreateButton({
     Name = "📍 Teleport to Selected Event",
     Callback = function()
-        if not selectedEvent or selectedEvent == "Select Event/Location..." or selectedEvent == "No active events detected" or selectedEvent == "Error detecting events" then
-            Rayfield:Notify({
-                Title = "Please select an event first!",
-                Content = "",
-                Duration = 3,
-                Image = "bell-ring",
-            })
+        if not selectedEvent or selectedEvent == "Select Event/Location..." or selectedEvent == "Nothing" or selectedEvent == "Error events" then
             return
         end
-        
-        print("=== TELEPORT DEBUG ===")
-        print("Selected event:", selectedEvent)
-        
         local player = game.Players.LocalPlayer
         if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-            Rayfield:Notify({
-                Title = "Character not found!",
-                Content = "Wait for character to load",
-                Duration = 3,
-                Image = "bell-ring",
-            })
             return
         end
         
         local targetPos = getEventCoordinates(selectedEvent)
         if targetPos then
-            -- Add small random offset to avoid collision
             local offsetPos = targetPos + Vector3.new(
                 math.random(-5, 5),
                 0,
                 math.random(-5, 5)
             )
-            
-            print("Teleporting to:", offsetPos)
             player.Character.HumanoidRootPart.CFrame = CFrame.new(offsetPos)
-            
-            local cleanName = string.gsub(selectedEvent, " 🟢", "")
-            Rayfield:Notify({
-                Title = "Teleported to " .. cleanName,
-                Content = "Position: " .. math.floor(offsetPos.X) .. ", " .. math.floor(offsetPos.Y) .. ", " .. math.floor(offsetPos.Z),
-                Duration = 5,
-                Image = "bell-ring",
-            })
-        else
-            print("Failed to get coordinates for:", selectedEvent)
-            Rayfield:Notify({
-                Title = "Location not found!",
-                Content = "Event: " .. selectedEvent .. "\nCheck console (F9) for details",
-                Duration = 7,
-                Image = "bell-ring",
-            })
+            flyToggle:Set(true)
         end
     end,
 })
@@ -1658,6 +1566,384 @@ _G.ReconnectRandomServer = function()
       game.Players.LocalPlayer
    )
 end
+local WebhookTab = Window:CreateTab("Webhook", "bell-ring")
+
+-- Webhook Variables
+local webhookURL = ""
+local isWebhookActive = false
+local trackedItems = {}
+local lastInventoryData = {}
+
+-- Webhook URL Input
+local WebhookInput = WebhookTab:CreateInput({
+    Name = "Discord Webhook URL",
+    PlaceholderText = "https://discord.com/api/webhooks/...",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        webhookURL = Text
+        if Text ~= "" then
+            Rayfield:Notify({
+                Title = "Webhook URL Set",
+                Content = "Ready to track items!",
+                Duration = 3,
+                Image = "bell-ring",
+            })
+        end
+    end,
+})
+
+-- Function to get item data from ReplicatedStorage
+local function getItemData(itemId)
+    local success, itemData = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local itemsFolder = ReplicatedStorage:FindFirstChild("Items")
+        
+        if not itemsFolder then
+            return nil
+        end
+        
+        -- Cari item berdasarkan ID
+        for _, itemModule in pairs(itemsFolder:GetChildren()) do
+            if itemModule:IsA("ModuleScript") then
+                local success2, data = pcall(function()
+                    return require(itemModule)
+                end)
+                
+                if success2 and data and data.Data and data.Data.Id == itemId then
+                    return {
+                        Name = data.Data.Name,
+                        Type = data.Data.Type,
+                        Tier = data.Data.Tier,
+                        SellPrice = data.SellPrice,
+                        Weight = data.Weight,
+                        Icon = data.Data.Icon,
+                        Probability = data.Probability
+                    }
+                end
+            end
+        end
+        
+        return nil
+    end)
+    
+    if success then
+        return itemData
+    else
+        warn("Error getting item data:", itemData)
+        return nil
+    end
+end
+
+-- Function to format weight for display
+local function formatWeight(weight, actualWeight)
+    if not weight then
+        return "Unknown"
+    end
+    
+    local weightText = string.format("%.1f kg", actualWeight or 0)
+    
+    if weight.Big and actualWeight then
+        if actualWeight >= weight.Big.Min then
+            weightText = weightText .. " (BIG)"
+        end
+    end
+    
+    return weightText
+end
+
+-- Function to get tier info
+local function getTierInfo(tier)
+    local tierColors = {
+        [1] = {name = "Common", color = 0x808080},
+        [2] = {name = "Uncommon", color = 0x00FF00},
+        [3] = {name = "Rare", color = 0x0080FF},
+        [4] = {name = "Epic", color = 0x8000FF},
+        [5] = {name = "Legendary", color = 0xFF8000},
+        [6] = {name = "Mythic", color = 0xFF0080},
+        [7] = {name = "Divine", color = 0xFFD700},
+        [8] = {name = "Exotic", color = 0xFF69B4}
+    }
+    
+    return tierColors[tier] or {name = "Unknown", color = 0x808080}
+end
+
+-- Function to send webhook
+local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
+    if webhookURL == "" then
+        return
+    end
+    
+    local success, error = pcall(function()
+        local player = game.Players.LocalPlayer
+        local tierInfo = getTierInfo(itemData.Tier or 1)
+        
+        -- Calculate rarity text
+        local rarityText = "Unknown"
+        if itemData.Probability and itemData.Probability.Chance then
+            local chance = itemData.Probability.Chance
+            if chance >= 0.1 then
+                rarityText = string.format("1 in %.0f", 1/chance)
+            else
+                rarityText = string.format("1 in %.0f", 1/chance)
+            end
+        end
+        
+        -- Item title with variant
+        local fullItemName = itemName
+        if isVariant and variantName then
+            fullItemName = variantName .. " " .. itemName
+        end
+        
+        local data = {
+            ["username"] = "Fish It Tracker",
+            ["avatar_url"] = "https://cdn.discordapp.com/attachments/1234567890/fish_icon.png",
+            ["embeds"] = {{
+                ["title"] = "🎣 New Fish Caught!",
+                ["color"] = tierInfo.color,
+                ["fields"] = {
+                    {
+                        ["name"] = "🐟 Fish Name",
+                        ["value"] = "**" .. fullItemName .. "**",
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "⚖️ Weight",
+                        ["value"] = formatWeight(itemData.Weight, weight),
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "💰 Sell Price",
+                        ["value"] = "**$" .. (itemData.SellPrice or 0) .. "**",
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "⭐ Tier",
+                        ["value"] = tierInfo.name .. " (T" .. (itemData.Tier or 1) .. ")",
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "🎲 Rarity",
+                        ["value"] = rarityText,
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "👤 Player",
+                        ["value"] = player.Name,
+                        ["inline"] = true
+                    }
+                },
+                ["footer"] = {
+                    ["text"] = "Fish It Tracker • " .. os.date("%Y-%m-%d %H:%M:%S")
+                },
+                ["thumbnail"] = {
+                    ["url"] = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=150&height=150&format=png"
+                }
+            }}
+        }
+        
+        local headers = {["Content-Type"] = "application/json"}
+        local body = game:GetService("HttpService"):JSONEncode(data)
+        local req = http_request or request or syn.request or fluxus and fluxus.request
+        
+        if req then
+            req({
+                Url = webhookURL,
+                Method = "POST",
+                Headers = headers,
+                Body = body
+            })
+        end
+    end)
+    
+    if not success then
+        warn("Webhook error:", error)
+    end
+end
+
+-- Function to monitor inventory changes
+local function startInventoryMonitoring()
+    local success, error = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local Client = require(ReplicatedStorage.Packages.Replion).Client
+        local ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
+        
+        -- Wait for data replion
+        local dataReplion = Client:WaitReplion("Data")
+        
+        -- Monitor inventory changes
+        dataReplion:OnChange("Inventory", function(newInventory, oldInventory)
+            if not isWebhookActive or not newInventory then
+                return
+            end
+            
+            -- Check for new items
+            for category, items in pairs(newInventory) do
+                if type(items) == "table" then
+                    for uuid, itemInfo in pairs(items) do
+                        -- Check if this is a new item
+                        local isNewItem = false
+                        
+                        if not oldInventory or not oldInventory[category] or not oldInventory[category][uuid] then
+                            isNewItem = true
+                        elseif oldInventory[category][uuid].Quantity and itemInfo.Quantity then
+                            -- Check if quantity increased
+                            if itemInfo.Quantity > oldInventory[category][uuid].Quantity then
+                                isNewItem = true
+                            end
+                        end
+                        
+                        if isNewItem and itemInfo.Id then
+                            -- Get item data
+                            local itemData = getItemData(itemInfo.Id)
+                            
+                            if itemData and itemData.Type == "Fishes" then
+                                -- Check for variants
+                                local isVariant = false
+                                local variantName = nil
+                                
+                                if itemInfo.Metadata and itemInfo.Metadata.VariantId then
+                                    local variantData = ItemUtility:GetVariantData(itemInfo.Metadata.VariantId)
+                                    if variantData and variantData.Data then
+                                        isVariant = true
+                                        variantName = variantData.Data.Name
+                                    end
+                                end
+                                
+                                -- Get weight from metadata
+                                local weight = nil
+                                if itemInfo.Metadata and itemInfo.Metadata.Weight then
+                                    weight = itemInfo.Metadata.Weight
+                                end
+                                
+                                -- Send webhook
+                                sendWebhook(itemData.Name, itemData, weight, isVariant, variantName)
+                                
+                                -- Show notification
+                                Rayfield:Notify({
+                                    Title = "Fish Detected!",
+                                    Content = (variantName and (variantName .. " ") or "") .. itemData.Name .. " sent to webhook",
+                                    Duration = 5,
+                                    Image = "bell-ring",
+                                })
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+        
+    end)
+    
+    if not success then
+        warn("Error starting inventory monitoring:", error)
+        Rayfield:Notify({
+            Title = "Monitoring Error",
+            Content = "Failed to start inventory monitoring",
+            Duration = 5,
+            Image = "bell-ring",
+        })
+    end
+end
+
+-- Webhook Toggle
+local WebhookToggle = WebhookTab:CreateToggle({
+    Name = "Enable Webhook Tracking",
+    CurrentValue = false,
+    Flag = "webhooktracking",
+    Callback = function(Value)
+        isWebhookActive = Value
+        
+        if Value then
+            if webhookURL == "" then
+                Rayfield:Notify({
+                    Title = "No Webhook URL",
+                    Content = "Please enter webhook URL first",
+                    Duration = 5,
+                    Image = "bell-ring",
+                })
+                WebhookToggle:Set(false)
+                return
+            end
+            
+            -- Start monitoring
+            startInventoryMonitoring()
+            
+            Rayfield:Notify({
+                Title = "Webhook Tracking Started",
+                Content = "Now tracking new fish catches",
+                Duration = 5,
+                Image = "bell-ring",
+            })
+        else
+            Rayfield:Notify({
+                Title = "Webhook Tracking Stopped",
+                Content = "",
+                Duration = 3,
+                Image = "bell-ring",
+            })
+        end
+    end,
+})
+
+-- Test Webhook Button
+local TestWebhookButton = WebhookTab:CreateButton({
+    Name = "🧪 Test Webhook",
+    Callback = function()
+        if webhookURL == "" then
+            Rayfield:Notify({
+                Title = "No Webhook URL",
+                Content = "Please enter webhook URL first",
+                Duration = 5,
+                Image = "bell-ring",
+            })
+            return
+        end
+        
+        -- Send test message
+        local testData = {
+            Name = "Test Fish",
+            Type = "Fishes",
+            Tier = 3,
+            SellPrice = 150,
+            Weight = {Default = {Min = 2, Max = 5}},
+            Probability = {Chance = 0.05}
+        }
+        
+        sendWebhook("Test Fish", testData, 3.5, false, nil)
+        
+        Rayfield:Notify({
+            Title = "Test Webhook Sent",
+            Content = "Check your Discord channel",
+            Duration = 5,
+            Image = "bell-ring",
+        })
+    end,
+})
+
+-- Webhook Info
+local WebhookParagraph = WebhookTab:CreateParagraph({
+    Title = "Webhook Information",
+    Content = "🎣 This webhook will track all fish that enter your inventory\n\n📊 Tracked Data:\n• Fish Name & Variants\n• Weight (including BIG fish)\n• Sell Price\n• Tier & Rarity\n• Player Info\n\n⚠️ Make sure to test your webhook first!"
+})
+
+-- Clear Webhook Button
+local ClearWebhookButton = WebhookTab:CreateButton({
+    Name = "🗑️ Clear Webhook URL",
+    Callback = function()
+        webhookURL = ""
+        WebhookInput:Set("")
+        if isWebhookActive then
+            WebhookToggle:Set(false)
+        end
+        
+        Rayfield:Notify({
+            Title = "Webhook URL Cleared",
+            Content = "",
+            Duration = 3,
+            Image = "bell-ring",
+        })
+    end,
+})
 Rayfield:LoadConfiguration()
 if isAutoFarmActive then
    print('zzz')
