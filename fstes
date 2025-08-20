@@ -901,10 +901,7 @@ end
          end
       end,
    })
-   -- Tambahkan kode ini setelah NPCDropdown di TeleportTab
-
--- Event Detection Variables
-local detectedEvents = {}
+   local detectedEvents = {}
 local selectedEvent = nil
 local EventDropdown = nil
 
@@ -932,114 +929,73 @@ local eventCoordinates = {
     ["Worm Hunt"] = {Vector3.new(-2063.47021, 3.99908447, 3643.12622)} -- Tropical Grove dari log
 }
 
--- Function to detect active events berdasarkan log console
+-- Function to detect active events - HANYA yang benar-benar aktif
 local function detectActiveEvents()
     local activeEvents = {}
     
     local success, error = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
         
-        -- Method 1: Check Workspace Props untuk Shark Hunt (dari log: Workspace.Props.Shark Hunt)
+        -- Method 1: Check Workspace Props - UTAMA (paling akurat dari log)
         local workspaceProps = workspace:FindFirstChild("Props")
         if workspaceProps then
+            -- Shark Hunt - hanya jika ada model "Shark Hunt" di Props
             local sharkHuntProp = workspaceProps:FindFirstChild("Shark Hunt")
-            if sharkHuntProp then
+            if sharkHuntProp and sharkHuntProp:IsA("Model") then
                 table.insert(activeEvents, "Shark Hunt 🟢")
             end
             
-            local ghostSharkProp = workspaceProps:FindFirstChild("Ghost Shark Hunt")
-            if ghostSharkProp then
+            -- Ghost Shark Hunt
+            local ghostSharkProp = workspaceProps:FindFirstChild("Ghost Shark Hunt") 
+            if ghostSharkProp and ghostSharkProp:IsA("Model") then
                 table.insert(activeEvents, "Ghost Shark Hunt 🟢")
             end
         end
         
-        -- Method 2: Check VFX untuk event effects (dari log: ReplicatedStorage.VFX.Shark Obtained)
-        local vfxFolder = ReplicatedStorage:FindFirstChild("VFX")
-        if vfxFolder then
-            if vfxFolder:FindFirstChild("Shark Obtained") then
-                if not string.find(table.concat(activeEvents), "Shark Hunt") then
-                    table.insert(activeEvents, "Shark Hunt 🟢")
-                end
-            end
-            
-            if vfxFolder:FindFirstChild("Ghost Shark Obtained") then
-                if not string.find(table.concat(activeEvents), "Ghost Shark Hunt") then
-                    table.insert(activeEvents, "Ghost Shark Hunt 🟢")
-                end
-            end
-        end
-        
-        -- Method 3: Check GUI Text untuk event info (dari log: GUI Text: Shark Hunt)
-        local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
-        if PlayerGui then
-            for _, gui in pairs(PlayerGui:GetDescendants()) do
-                if gui:IsA("TextLabel") or gui:IsA("TextButton") then
-                    local text = gui.Text or ""
-                    
-                    -- Check untuk "Shark Hunt" di GUI
-                    if string.find(text, "Shark Hunt") and not string.find(table.concat(activeEvents), "Shark Hunt") then
-                        table.insert(activeEvents, "Shark Hunt 🟢")
-                    end
-                    
-                    -- Check untuk "Ghost Shark Hunt" di GUI  
-                    if string.find(text, "Ghost Shark Hunt") and not string.find(table.concat(activeEvents), "Ghost Shark Hunt") then
-                        table.insert(activeEvents, "Ghost Shark Hunt 🟢")
-                    end
-                    
-                    -- Check untuk "Worm Hunt" (dari log: New event "Worm Hunt")
-                    if string.find(text, "Worm Hunt") and not string.find(table.concat(activeEvents), "Worm Hunt") then
-                        table.insert(activeEvents, "Worm Hunt 🟢")
-                    end
-                    
-                    -- Check untuk "Admin Event" (dari log: Admin Event Fish)
-                    if (string.find(text, "Admin Event") or string.find(text, "Admin Fish")) and not string.find(table.concat(activeEvents), "Admin") then
-                        table.insert(activeEvents, "Admin - Shocked 🟢")
-                    end
-                end
-            end
-        end
-        
-        -- Method 4: Check Controllers.EventController (dari log)
-        local eventController = ReplicatedStorage:FindFirstChild("Controllers")
-        if eventController then
-            eventController = eventController:FindFirstChild("EventController")
-            if eventController then
-                -- Check untuk OnEventAdded/OnEventRemoved
-                local onEventAdded = eventController:FindFirstChild("OnEventAdded")
-                local onEventRemoved = eventController:FindFirstChild("OnEventRemoved")
-                
-                if onEventAdded then
-                    -- Ada event yang baru ditambahkan
-                    if not string.find(table.concat(activeEvents), "🟢") then
-                        table.insert(activeEvents, "Active Event Detected 🟢")
-                    end
-                end
-            end
-        end
-        
-        -- Method 5: Check Shared.PlayerEvents (dari log)
-        local sharedFolder = ReplicatedStorage:FindFirstChild("Shared")
-        if sharedFolder then
-            local playerEvents = sharedFolder:FindFirstChild("PlayerEvents")
-            if playerEvents and #playerEvents:GetChildren() > 0 then
-                table.insert(activeEvents, "Player Event Active 🟢")
-            end
-        end
-        
-        -- Method 6: Check lighting untuk weather events
+        -- Method 2: Check untuk Admin Event - cek lighting khusus
         local lighting = game:GetService("Lighting")
+        -- Admin Shocked event biasanya punya ambient sangat berbeda
+        if lighting.Ambient.R > 0.8 and lighting.Ambient.G > 0.8 and lighting.Ambient.B < 0.3 then
+            table.insert(activeEvents, "Admin - Shocked 🟢")
+        end
         
-        -- Storm detection (brightness tinggi dan ambient biru)
-        if lighting.Brightness > 2 and lighting.Ambient.B > 0.5 then
+        -- Method 3: Check untuk Weather Events - deteksi ketat
+        -- Storm - brightness sangat tinggi (>= 3) dan ambient biru tinggi
+        if lighting.Brightness >= 3 and lighting.Ambient.B >= 0.55 then
             table.insert(activeEvents, "Storm 🟢")
         end
         
-        -- Snow detection (colorshift rendah)
-        if lighting.ColorShift_Top.R < 0.1 and lighting.ColorShift_Top.G < 0.1 and lighting.ColorShift_Top.B < 0.1 then
+        -- Snow - semua colorshift sangat rendah (mendekati hitam)
+        if lighting.ColorShift_Top.R <= 0.05 and lighting.ColorShift_Top.G <= 0.05 and lighting.ColorShift_Top.B <= 0.05 then
             table.insert(activeEvents, "Snow 🟢")
         end
         
-        -- Jangan tambahkan manual options, hanya event aktif saja
+        -- Wind - cek atmosphere density tinggi
+        local atmosphere = lighting:FindFirstChild("Atmosphere")
+        if atmosphere and atmosphere.Density >= 0.8 then
+            table.insert(activeEvents, "Wind 🟢")
+        end
+        
+        -- Cloudy - brightness rendah dengan colorshift abu-abu
+        if lighting.Brightness <= 0.5 and lighting.ColorShift_Top.R >= 0.7 and lighting.ColorShift_Top.G >= 0.7 and lighting.ColorShift_Top.B >= 0.7 then
+            table.insert(activeEvents, "Cloudy 🟢")
+        end
+        
+        -- Method 4: Check GUI untuk Worm Hunt (lebih spesifik)
+        local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+        if PlayerGui then
+            for _, gui in pairs(PlayerGui:GetDescendants()) do
+                if gui:IsA("TextLabel") and gui.Text then
+                    local text = gui.Text
+                    -- Hanya deteksi jika ada text yang tepat menunjukkan event aktif
+                    if string.match(text, "Worm Hunt.*active") or string.match(text, "Worm Hunt.*%d+:%d+") then
+                        if not string.find(table.concat(activeEvents), "Worm Hunt") then
+                            table.insert(activeEvents, "Worm Hunt 🟢")
+                        end
+                    end
+                end
+            end
+        end
         
     end)
     
@@ -1061,26 +1017,7 @@ local function getEventCoordinates(selection)
     -- Clean selection name
     local cleanName = string.gsub(selection, " 🟢", "")
     
-    -- Handle manual locations
-    if string.find(selection, "Shark Hunt Location") then
-        local locationNum = tonumber(string.match(selection, "Location (%d+)"))
-        if locationNum and eventCoordinates["Shark Hunt"][locationNum] then
-            return eventCoordinates["Shark Hunt"][locationNum]
-        end
-    elseif string.find(selection, "Ghost Shark Hunt Location") then
-        local locationNum = tonumber(string.match(selection, "Location (%d+)"))
-        if locationNum and eventCoordinates["Ghost Shark Hunt"][locationNum] then
-            return eventCoordinates["Ghost Shark Hunt"][locationNum]
-        end
-    elseif selection == "Admin - Shocked Area" then
-        return eventCoordinates["Admin - Shocked"][1]
-    elseif selection == "Weather Machine" then
-        return eventCoordinates["Storm"][1] -- Weather Machine location
-    elseif selection == "Worm Hunt - Tropical Grove" then
-        return eventCoordinates["Worm Hunt"][1]
-    end
-    
-    -- Handle active events
+    -- Handle active events berdasarkan nama event
     if eventCoordinates[cleanName] then
         local coords = eventCoordinates[cleanName]
         if #coords > 1 then
@@ -1153,7 +1090,7 @@ local RefreshEventsButton = TeleportTab:CreateButton({
 local TeleportEventButton = TeleportTab:CreateButton({
     Name = "📍 Teleport to Selected Event",
     Callback = function()
-        if not selectedEvent or selectedEvent == "Select Event/Location..." or selectedEvent == "No active events detected" or selectedEvent == "Error detecting events" or selectedEvent == "--- Manual Locations ---" then
+        if not selectedEvent or selectedEvent == "Select Event/Location..." or selectedEvent == "No active events detected" or selectedEvent == "Error detecting events" then
             Rayfield:Notify({
                 Title = "Please select an event first!",
                 Content = "",
@@ -1202,6 +1139,7 @@ local TeleportEventButton = TeleportTab:CreateButton({
         end
     end,
 })
+
 -- local CopyCoordsButton = TeleportTab:CreateButton({
 --     Name = "Copy Coords",
 --     Callback = function()
