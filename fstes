@@ -1060,20 +1060,45 @@ end
 
 -- Function to get coordinates based on selection
 local function getEventCoordinates(selection)
-    -- Clean selection name
+    -- Clean selection name - hapus emoji dan spasi extra
     local cleanName = string.gsub(selection, " 🟢", "")
+    cleanName = string.gsub(cleanName, "^%s*(.-)%s*$", "%1") -- trim whitespace
     
-    -- Handle active events berdasarkan nama event
+    -- Debug print untuk troubleshooting
+    print("Looking for coordinates for:", "'" .. cleanName .. "'")
+    print("Available events:", table.concat({"Shark Hunt", "Ghost Shark Hunt", "Sparkling Cove", "Worm Hunt", "Admin - Shocked", "Admin - Black Hole", "Admin - Ghost Worm", "Admin - Meteor Rain", "Storm", "Snow", "Wind", "Cloudy"}, ", "))
+    
+    -- Handle active events berdasarkan nama event yang tepat
     if eventCoordinates[cleanName] then
         local coords = eventCoordinates[cleanName]
+        print("Found coordinates for", cleanName, "- Total locations:", #coords)
+        
         if #coords > 1 then
             -- Return random location for multi-location events
-            return coords[math.random(1, #coords)]
+            local selectedCoord = coords[math.random(1, #coords)]
+            print("Selected random location:", selectedCoord)
+            return selectedCoord
         else
+            print("Using single location:", coords[1])
             return coords[1]
+        end
+    else
+        print("No coordinates found for:", cleanName)
+        -- Coba cari dengan partial matching jika exact match gagal
+        for eventName, coords in pairs(eventCoordinates) do
+            if string.find(string.lower(eventName), string.lower(cleanName)) or 
+               string.find(string.lower(cleanName), string.lower(eventName)) then
+                print("Found partial match:", eventName)
+                if #coords > 1 then
+                    return coords[math.random(1, #coords)]
+                else
+                    return coords[1]
+                end
+            end
         end
     end
     
+    print("No coordinates found at all for:", cleanName)
     return nil
 end
 
@@ -1146,11 +1171,14 @@ local TeleportEventButton = TeleportTab:CreateButton({
             return
         end
         
+        print("=== TELEPORT DEBUG ===")
+        print("Selected event:", selectedEvent)
+        
         local player = game.Players.LocalPlayer
         if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
             Rayfield:Notify({
                 Title = "Character not found!",
-                Content = "",
+                Content = "Wait for character to load",
                 Duration = 3,
                 Image = "bell-ring",
             })
@@ -1166,20 +1194,22 @@ local TeleportEventButton = TeleportTab:CreateButton({
                 math.random(-5, 5)
             )
             
+            print("Teleporting to:", offsetPos)
             player.Character.HumanoidRootPart.CFrame = CFrame.new(offsetPos)
             
             local cleanName = string.gsub(selectedEvent, " 🟢", "")
             Rayfield:Notify({
                 Title = "Teleported to " .. cleanName,
-                Content = "Event location reached!",
+                Content = "Position: " .. math.floor(offsetPos.X) .. ", " .. math.floor(offsetPos.Y) .. ", " .. math.floor(offsetPos.Z),
                 Duration = 5,
                 Image = "bell-ring",
             })
         else
+            print("Failed to get coordinates for:", selectedEvent)
             Rayfield:Notify({
                 Title = "Location not found!",
-                Content = "Unable to find coordinates for " .. selectedEvent,
-                Duration = 5,
+                Content = "Event: " .. selectedEvent .. "\nCheck console (F9) for details",
+                Duration = 7,
                 Image = "bell-ring",
             })
         end
