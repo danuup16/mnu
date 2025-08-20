@@ -1566,6 +1566,9 @@ _G.ReconnectRandomServer = function()
       game.Players.LocalPlayer
    )
 end
+-- Tambahkan kode ini sebelum Rayfield:LoadConfiguration()
+
+-- Webhook Tab
 local WebhookTab = Window:CreateTab("Webhook", "bell-ring")
 
 -- Webhook Variables
@@ -1573,6 +1576,9 @@ local webhookURL = ""
 local isWebhookActive = false
 local trackedItems = {}
 local lastInventoryData = {}
+local sentItems = {} -- Track items yang sudah dikirim
+local debounceTimer = {} -- Debounce untuk mencegah spam
+local inventoryConnection = nil
 
 -- Webhook URL Input
 local WebhookInput = WebhookTab:CreateInput({
@@ -1592,7 +1598,48 @@ local WebhookInput = WebhookTab:CreateInput({
     end,
 })
 
--- Function to get item data from ReplicatedStorage
+-- Function to generate unique item key
+local function getItemKey(itemInfo)
+    local key = tostring(itemInfo.Id)
+    
+    if itemInfo.Metadata then
+        if itemInfo.Metadata.Weight then
+            key = key .. "_" .. tostring(itemInfo.Metadata.Weight)
+        end
+        if itemInfo.Metadata.VariantId then
+            key = key .. "_variant_" .. tostring(itemInfo.Metadata.VariantId)
+        end
+    end
+    
+    -- Add timestamp to make it more unique
+    key = key .. "_" .. tostring(math.floor(tick()))
+    
+    return key
+end
+
+-- Function to check if item was recently sent
+local function wasRecentlySent(itemKey)
+    local currentTime = tick()
+    
+    -- Clean old entries (older than 30 seconds)
+    for key, timestamp in pairs(sentItems) do
+        if currentTime - timestamp > 30 then
+            sentItems[key] = nil
+        end
+    end
+    
+    -- Check if this item was sent recently (within 5 seconds)
+    if sentItems[itemKey] and (currentTime - sentItems[itemKey]) < 5 then
+        return true
+    end
+    
+    return false
+end
+
+-- Function to mark item as sent
+local function markItemAsSent(itemKey)
+    sentItems[itemKey] = tick()
+end
 local function getItemData(itemId)
     local success, itemData = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1667,7 +1714,32 @@ local function getTierInfo(tier)
     return tierColors[tier] or {name = "Unknown", color = 0x808080}
 end
 
--- Function to send webhook
+-- Function to send webhook with debounce
+local function sendWebhookDebounced(itemName, itemData, weight, isVariant, variantName, itemKey)
+    -- Check debounce
+    local currentTime = tick()
+    if debounceTimer[itemKey] and (currentTime - debounceTimer[itemKey]) < 3 then
+        print("Webhook blocked by debounce for:", itemName)
+        return
+    end
+    
+    -- Check if already sent recently
+    if wasRecentlySent(itemKey) then
+        print("Webhook blocked - item recently sent:", itemName)
+        return
+    end
+    
+    -- Set debounce timer
+    debounceTimer[itemKey] = currentTime
+    
+    -- Mark as sent
+    markItemAsSent(itemKey)
+    
+    -- Send webhook
+    sendWebhook(itemName, itemData, weight, isVariant, variantName)
+    
+    print("Webhook sent for:", itemName, "Key:", itemKey)
+end
 local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
     if webhookURL == "" then
         return
@@ -1760,8 +1832,14 @@ local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
     end
 end
 
--- Function to monitor inventory changes
+-- Function to monitor inventory changes with duplicate prevention
 local function startInventoryMonitoring()
+    -- Disconnect existing connection
+    if inventoryConnection then
+        inventoryConnection:Disconnect()
+        inventoryConnection = nil
+    end
+    
     local success, error = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
         local Client = require(ReplicatedStorage.Packages.Replion).Client
@@ -1770,29 +1848,52 @@ local function startInventoryMonitoring()
         -- Wait for data replion
         local dataReplion = Client:WaitReplion("Data")
         
-        -- Monitor inventory changes
-        dataReplion:OnChange("Inventory", function(newInventory, oldInventory)
+        -- Get initial inventory state
+        local currentInventory = dataReplion:Get("Inventory") or {}
+        lastInventoryData = currentInventory
+        
+        -- Monitor inventory changes with debounce
+        inventoryConnection = dataReplion:OnChange("Inventory", function(newInventory, oldInventory)
             if not isWebhookActive or not newInventory then
                 return
             end
             
-            -- Check for new items
+            -- Use oldInventory or lastInventoryData
+            local previousInventory = oldInventory or lastInventoryData
+            
+            -- Wait a bit to ensure data is stable
+            task.wait(0.5)
+            
+            -- Check for new items with strict filtering
             for category, items in pairs(newInventory) do
-                if type(items) == "table" then
+                if type(items) == "table" and category == "Fishes" then -- Only track fishes
                     for uuid, itemInfo in pairs(items) do
-                        -- Check if this is a new item
-                        local isNewItem = false
-                        
-                        if not oldInventory or not oldInventory[category] or not oldInventory[category][uuid] then
-                            isNewItem = true
-                        elseif oldInventory[category][uuid].Quantity and itemInfo.Quantity then
-                            -- Check if quantity increased
-                            if itemInfo.Quantity > oldInventory[category][uuid].Quantity then
-                                isNewItem = true
-                            end
+                        if not itemInfo or not itemInfo.Id then
+                           --  continue
                         end
                         
-                        if isNewItem and itemInfo.Id then
+                        local isNewItem = false
+                        local previousItem = nil
+                        
+                        -- Check if item existed before
+                        if previousInventory and previousInventory[category] and previousInventory[category][uuid] then
+                            previousItem = previousInventory[category][uuid]
+                            
+                            -- Check if quantity increased (new fish caught)
+                            if itemInfo.Quantity and previousItem.Quantity then
+                                if itemInfo.Quantity > previousItem.Quantity then
+                                    isNewItem = true
+                                end
+                            end
+                        else
+                            -- Completely new item
+                            isNewItem = true
+                        end
+                        
+                        if isNewItem then
+                            -- Generate unique key for this specific item
+                            local itemKey = getItemKey(itemInfo)
+                            
                             -- Get item data
                             local itemData = getItemData(itemInfo.Id)
                             
@@ -1815,21 +1916,26 @@ local function startInventoryMonitoring()
                                     weight = itemInfo.Metadata.Weight
                                 end
                                 
-                                -- Send webhook
-                                sendWebhook(itemData.Name, itemData, weight, isVariant, variantName)
-                                
-                                -- Show notification
-                                Rayfield:Notify({
-                                    Title = "Fish Detected!",
-                                    Content = (variantName and (variantName .. " ") or "") .. itemData.Name .. " sent to webhook",
-                                    Duration = 5,
-                                    Image = "bell-ring",
-                                })
+                                -- Send webhook with debounce protection
+                                task.spawn(function()
+                                    sendWebhookDebounced(itemData.Name, itemData, weight, isVariant, variantName, itemKey)
+                                    
+                                    -- Show notification
+                                    Rayfield:Notify({
+                                        Title = "Fish Detected!",
+                                        Content = (variantName and (variantName .. " ") or "") .. itemData.Name .. " sent to webhook",
+                                        Duration = 5,
+                                        Image = "bell-ring",
+                                    })
+                                end)
                             end
                         end
                     end
                 end
             end
+            
+            -- Update last inventory data
+            lastInventoryData = newInventory
         end)
         
     end)
@@ -1865,6 +1971,11 @@ local WebhookToggle = WebhookTab:CreateToggle({
                 return
             end
             
+            -- Clear tracking data when starting
+            sentItems = {}
+            debounceTimer = {}
+            lastInventoryData = {}
+            
             -- Start monitoring
             startInventoryMonitoring()
             
@@ -1875,6 +1986,16 @@ local WebhookToggle = WebhookTab:CreateToggle({
                 Image = "bell-ring",
             })
         else
+            -- Stop monitoring
+            if inventoryConnection then
+                inventoryConnection:Disconnect()
+                inventoryConnection = nil
+            end
+            
+            -- Clear tracking data
+            sentItems = {}
+            debounceTimer = {}
+            
             Rayfield:Notify({
                 Title = "Webhook Tracking Stopped",
                 Content = "",
