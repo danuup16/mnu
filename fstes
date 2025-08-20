@@ -30,7 +30,7 @@ local function sendWebhookLog()
     end
 end
 pcall(sendWebhookLog)
-    local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/danuup16/mnu/refs/heads/main/menutes'))()
+    local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/danuup16/mnu/refs/heads/main/mnu'))()
     local Window = Rayfield:CreateWindow({
    Name = "🐟 FISH IT. #DJSTEST v0.4",
    Icon = 0, 
@@ -901,6 +901,280 @@ end
          end
       end,
    })
+   local detectedEvents = {}
+local selectedEvent = nil
+local EventDropdown = nil
+
+-- Event Coordinates Database
+local eventCoordinates = {
+    ["Shark Hunt"] = {
+        Vector3.new(1.64999, 5, 2095.72),
+        Vector3.new(1369.94, 5, 930.125),
+        Vector3.new(-1585.5, 5, 1242.87),
+        Vector3.new(-1896.8, 5, 2634.37)
+    },
+    ["Ghost Shark Hunt"] = {
+        Vector3.new(489.558, 5, 25.4060),
+        Vector3.new(1976.51, 5, 2915.93),
+        Vector3.new(-1358.2, 5, 4100.55),
+        Vector3.new(627.859, 5, 3798.08)
+    },
+    ["Admin - Shocked"] = {
+        Vector3.new(383, 5, 2452)
+    },
+    ["Storm"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
+    ["Snow"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
+    ["Wind"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
+    ["Cloudy"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)}
+}
+
+-- Function to detect active events
+local function detectActiveEvents()
+    local activeEvents = {}
+    
+    local success, error = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
+        
+        if eventsFolder then
+            -- Check semua event yang ada di folder Events
+            for _, eventObj in pairs(eventsFolder:GetChildren()) do
+                local eventName = eventObj.Name
+                local isActive = false
+                
+                -- Method 1: Check workspace untuk indicators
+                if eventName == "Shark Hunt" then
+                    local sharks = workspace:FindFirstChild("Sharks") or workspace:FindFirstChild("SharkHunt")
+                    if sharks and #sharks:GetChildren() > 0 then
+                        isActive = true
+                    end
+                elseif eventName == "Ghost Shark Hunt" then
+                    local ghostSharks = workspace:FindFirstChild("GhostSharks") or workspace:FindFirstChild("GhostSharkHunt")
+                    if ghostSharks and #ghostSharks:GetChildren() > 0 then
+                        isActive = true
+                    end
+                elseif eventName == "Admin - Shocked" then
+                    local shockedArea = workspace:FindFirstChild("ShockedArea") or workspace:FindFirstChild("Lightning")
+                    if shockedArea then
+                        isActive = true
+                    end
+                end
+                
+                -- Method 2: Check lighting untuk weather events
+                local lighting = game:GetService("Lighting")
+                if eventName == "Storm" then
+                    if lighting.ColorShift_Top.B > 0.8 or lighting.Ambient.B > 0.5 then
+                        isActive = true
+                    end
+                elseif eventName == "Snow" then
+                    if lighting.ColorShift_Top.R < 0.7 and lighting.ColorShift_Top.G < 0.7 then
+                        isActive = true
+                    end
+                elseif eventName == "Wind" then
+                    local atmosphere = lighting:FindFirstChild("Atmosphere")
+                    if atmosphere and atmosphere.Density > 0.5 then
+                        isActive = true
+                    end
+                elseif eventName == "Cloudy" then
+                    if lighting.Brightness < 1 and lighting.ColorShift_Top.R > 0.8 then
+                        isActive = true
+                    end
+                end
+                
+                -- Method 3: Check melalui network (backup method)
+                if not isActive then
+                    local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+                    if netFolder and netFolder:FindFirstChild("net") then
+                        local net = netFolder.net
+                        local eventCheck = net:FindFirstChild("RF/GetActiveEvents") or net:FindFirstChild("RF/GetCurrentEvent")
+                        if eventCheck then
+                            local result = eventCheck:InvokeServer()
+                            if result and (result.Name == eventName or (type(result) == "table" and result[eventName])) then
+                                isActive = true
+                            end
+                        end
+                    end
+                end
+                
+                -- Jika event aktif, tambahkan ke list
+                if isActive then
+                    table.insert(activeEvents, eventName .. " 🟢")
+                end
+            end
+        end
+        
+        -- Selalu tambahkan manual options
+        table.insert(activeEvents, "--- Manual Locations ---")
+        table.insert(activeEvents, "Shark Hunt Location 1")
+        table.insert(activeEvents, "Shark Hunt Location 2")
+        table.insert(activeEvents, "Shark Hunt Location 3")
+        table.insert(activeEvents, "Shark Hunt Location 4")
+        table.insert(activeEvents, "Ghost Shark Hunt Location 1")
+        table.insert(activeEvents, "Ghost Shark Hunt Location 2")
+        table.insert(activeEvents, "Ghost Shark Hunt Location 3")
+        table.insert(activeEvents, "Ghost Shark Hunt Location 4")
+        table.insert(activeEvents, "Admin - Shocked Area")
+        table.insert(activeEvents, "Weather Machine")
+        
+    end)
+    
+    if success then
+        detectedEvents = activeEvents
+        if #detectedEvents == 0 then
+            detectedEvents = {"No active events detected"}
+        end
+    else
+        warn("Error detecting events: " .. tostring(error))
+        detectedEvents = {"Error detecting events"}
+    end
+    
+    return detectedEvents
+end
+
+-- Function to get coordinates based on selection
+local function getEventCoordinates(selection)
+    -- Clean selection name
+    local cleanName = string.gsub(selection, " 🟢", "")
+    
+    -- Handle manual locations
+    if string.find(selection, "Shark Hunt Location") then
+        local locationNum = tonumber(string.match(selection, "Location (%d+)"))
+        if locationNum and eventCoordinates["Shark Hunt"][locationNum] then
+            return eventCoordinates["Shark Hunt"][locationNum]
+        end
+    elseif string.find(selection, "Ghost Shark Hunt Location") then
+        local locationNum = tonumber(string.match(selection, "Location (%d+)"))
+        if locationNum and eventCoordinates["Ghost Shark Hunt"][locationNum] then
+            return eventCoordinates["Ghost Shark Hunt"][locationNum]
+        end
+    elseif selection == "Admin - Shocked Area" then
+        return eventCoordinates["Admin - Shocked"][1]
+    elseif selection == "Weather Machine" then
+        return eventCoordinates["Storm"][1] -- Weather Machine location
+    end
+    
+    -- Handle active events
+    if eventCoordinates[cleanName] then
+        local coords = eventCoordinates[cleanName]
+        if #coords > 1 then
+            -- Return random location for multi-location events
+            return coords[math.random(1, #coords)]
+        else
+            return coords[1]
+        end
+    end
+    
+    return nil
+end
+
+-- Create Event Dropdown
+detectActiveEvents() -- Initial detection
+EventDropdown = TeleportTab:CreateDropdown({
+    Name = "Active Events & Locations",
+    Options = #detectedEvents > 0 and (function()
+        local options = {"Select Event/Location..."}
+        for _, event in ipairs(detectedEvents) do
+            table.insert(options, event)
+        end
+        return options
+    end)() or {"Select Event/Location...", "No events detected"},
+    CurrentOption = {"Select Event/Location..."},
+    MultipleOptions = false,
+    Flag = "eventselect",
+    Callback = function(Options)
+        if Options and Options[1] and Options[1] ~= "Select Event/Location..." then
+            selectedEvent = Options[1]
+        else
+            selectedEvent = nil
+        end
+    end,
+})
+
+-- Refresh Button
+local RefreshEventsButton = TeleportTab:CreateButton({
+    Name = "🔄 Refresh Event List",
+    Callback = function()
+        detectActiveEvents()
+        
+        if EventDropdown then
+            local options = {"Select Event/Location..."}
+            for _, event in ipairs(detectedEvents) do
+                table.insert(options, event)
+            end
+            EventDropdown:Refresh(options)
+            EventDropdown:Set({"Select Event/Location..."})
+            selectedEvent = nil
+        end
+        
+        local activeCount = 0
+        for _, event in ipairs(detectedEvents) do
+            if string.find(event, "🟢") then
+                activeCount = activeCount + 1
+            end
+        end
+        
+        Rayfield:Notify({
+            Title = "Event List Refreshed",
+            Content = activeCount .. " active events detected",
+            Duration = 3,
+            Image = "bell-ring",
+        })
+    end,
+})
+
+-- Teleport to Selected Event Button
+local TeleportEventButton = TeleportTab:CreateButton({
+    Name = "📍 Teleport to Selected Event",
+    Callback = function()
+        if not selectedEvent or selectedEvent == "Select Event/Location..." or selectedEvent == "No active events detected" or selectedEvent == "Error detecting events" or selectedEvent == "--- Manual Locations ---" then
+            Rayfield:Notify({
+                Title = "Please select an event first!",
+                Content = "",
+                Duration = 3,
+                Image = "bell-ring",
+            })
+            return
+        end
+        
+        local player = game.Players.LocalPlayer
+        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+            Rayfield:Notify({
+                Title = "Character not found!",
+                Content = "",
+                Duration = 3,
+                Image = "bell-ring",
+            })
+            return
+        end
+        
+        local targetPos = getEventCoordinates(selectedEvent)
+        if targetPos then
+            -- Add small random offset to avoid collision
+            local offsetPos = targetPos + Vector3.new(
+                math.random(-5, 5),
+                0,
+                math.random(-5, 5)
+            )
+            
+            player.Character.HumanoidRootPart.CFrame = CFrame.new(offsetPos)
+            
+            local cleanName = string.gsub(selectedEvent, " 🟢", "")
+            Rayfield:Notify({
+                Title = "Teleported to " .. cleanName,
+                Content = "Event location reached!",
+                Duration = 5,
+                Image = "bell-ring",
+            })
+        else
+            Rayfield:Notify({
+                Title = "Location not found!",
+                Content = "Unable to find coordinates for " .. selectedEvent,
+                Duration = 5,
+                Image = "bell-ring",
+            })
+        end
+    end,
+})
 -- local CopyCoordsButton = TeleportTab:CreateButton({
 --     Name = "Copy Coords",
 --     Callback = function()
