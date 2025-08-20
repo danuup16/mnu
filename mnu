@@ -947,6 +947,53 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 		if renderStepped then renderStepped:Disconnect() end
 	end)
 end
+local savedPromptPosition = UDim2.new(0, 751, 0, 86) -- Default position
+
+local function makeDraggablePrompt(object, dragObject)
+	local dragging = false
+	local relative = nil
+	local offset = Vector2.zero
+	local screenGui = object:FindFirstAncestorWhichIsA("ScreenGui")
+	
+	if screenGui and screenGui.IgnoreGuiInset then
+		offset += getService('GuiService'):GetGuiInset()
+	end
+
+	-- Pastikan dragObject bisa menerima input
+	if dragObject.ClassName == "ImageButton" then
+		dragObject.Active = true
+	end
+	local mouseDownConnection = dragObject.MouseButton1Down:Connect(function()
+		dragging = true
+		
+		local mousePos = UserInputService:GetMouseLocation()
+		local objPos = object.AbsolutePosition + object.AbsoluteSize * object.AnchorPoint
+		relative = objPos - mousePos
+	end)
+
+	-- GUNAKAN UserInputService untuk mouse release (global)
+	local inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+			dragging = false
+			-- SAVE POSITION WHEN DRAG ENDS
+			savedPromptPosition = object.Position
+		end
+	end)
+
+	-- GUNAKAN UserInputService untuk mouse movement (global)
+	local inputChangedConnection = UserInputService.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+			local mousePos = UserInputService:GetMouseLocation()
+			local newPosition = mousePos + relative + offset
+			object.Position = UDim2.fromOffset(newPosition.X, newPosition.Y)
+		end
+	end)
+	object.Destroying:Connect(function()
+		if mouseDownConnection then mouseDownConnection:Disconnect() end
+		if inputEndedConnection then inputEndedConnection:Disconnect() end
+		if inputChangedConnection then inputChangedConnection:Disconnect() end
+	end)
+end
 
 
 local function PackColor(Color)
@@ -1202,16 +1249,27 @@ end
 local function Hide(notify: boolean?)
 	if MPrompt then
 		MPrompt.Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-		MPrompt.Position = UDim2.new(0.5, 0, 0, -50)
+		-- USE SAVED POSITION INSTEAD OF HARDCODED POSITION
+		MPrompt.Position = savedPromptPosition
 		MPrompt.Size = UDim2.new(0, 40, 0, 10)
 		MPrompt.BackgroundTransparency = 1
 		MPrompt.Title.TextTransparency = 1
+		
+		-- Jika ada logo, set transparansi logo juga
+		if MPrompt:FindFirstChild("LogoButton") then
+			MPrompt.LogoButton.ImageTransparency = 1
+		end
+		
 		MPrompt.Visible = true
 	end
+
+
 
 	task.spawn(closeSearch)
 
 	Debounce = true
+		TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 0)}):Play()
+
 	-- if notify then
 	-- 	if useMobilePrompt then 
 	-- 		RayfieldLibrary:Notify({Title = "#DJSSTORE", Content = "Open/Hide menu 'F' ", Duration = 7, Image = "bell-ring"})
@@ -1231,10 +1289,19 @@ local function Hide(notify: boolean?)
 	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
 	TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
 
-	if useMobilePrompt and MPrompt then
-		TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 120, 0, 30), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 0.3}):Play()
-		TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0.3}):Play()
+if useMobilePrompt and MPrompt then
+		if MPrompt:FindFirstChild("LogoButton") then
+			-- Animasi untuk logo - USE SAVED POSITION
+			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 60, 0, 60), Position = savedPromptPosition, BackgroundTransparency = 1}):Play()
+			TweenService:Create(MPrompt.LogoButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.3}):Play()
+		else
+			-- Fallback ke text animation - USE SAVED POSITION
+			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 120, 0, 30), Position = savedPromptPosition, BackgroundTransparency = 1}):Play()
+			TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0.3}):Play()
+		end
 	end
+
+
 
 	for _, TopbarButton in ipairs(Topbar:GetChildren()) do
 		if TopbarButton.ClassName == "ImageButton" then
@@ -1361,15 +1428,35 @@ local function Unhide()
 	TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
 	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
 
-	if MPrompt then
-		TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 40, 0, 10), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 1}):Play()
-		TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+if MPrompt then
+		if MPrompt:FindFirstChild("LogoButton") then
+			-- Animasi menyembunyikan logo - USE SAVED POSITION AS START POINT
+			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 40, 0, 10), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 1}):Play()
+			TweenService:Create(MPrompt.LogoButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+		else
+			-- Fallback ke text animation
+			TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 40, 0, 10), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 1}):Play()
+			TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+		end
 
 		task.spawn(function()
 			task.wait(0.5)
 			MPrompt.Visible = false
 		end)
+		
+		task.spawn(function()
+			while MPrompt and MPrompt.Parent do
+				MPrompt.BackgroundTransparency = 1
+				if MPrompt:FindFirstChild("LogoButton") then
+					MPrompt.LogoButton.BackgroundTransparency = 1
+				end
+				task.wait(0.1)
+			end
+		end)
 	end
+
+
+
 
 	if Minimised then
 		task.spawn(Maximise)
@@ -1532,14 +1619,14 @@ local function createSettings(window)
 		return
 	end
 
-	local newTab = window:CreateTab('Rayfield Settings', 0, true)
+	local newTab = window:CreateTab('nuSettings', 0, true)
 
-	if TabList['Rayfield Settings'] then
-		TabList['Rayfield Settings'].LayoutOrder = 1000
+	if TabList['nuSettings'] then
+		TabList['nuSettings'].LayoutOrder = 1000
 	end
 
-	if Elements['Rayfield Settings'] then
-		Elements['Rayfield Settings'].LayoutOrder = 1000
+	if Elements['nuSettings'] then
+		Elements['nuSettings'].LayoutOrder = 1000
 	end
 
 	-- Create sections and elements
@@ -1590,7 +1677,7 @@ end
 
 
 function RayfieldLibrary:CreateWindow(Settings)
-	print('creating window')
+	print('ddddd')
 	if Rayfield:FindFirstChild('Loading') then
 		if getgenv and not getgenv().rayfieldCached then
 			Rayfield.Enabled = true
@@ -1646,16 +1733,58 @@ function RayfieldLibrary:CreateWindow(Settings)
 	LoadingFrame.Title.TextTransparency = 1
 	LoadingFrame.Subtitle.TextTransparency = 1
 
-	if Settings.ShowText then
-		MPrompt.Title.Text = ''..Settings.ShowText -- ui mobile
-	end
-
+	if Settings.ShowImage then
+	MPrompt.Title.Visible = false -- Sembunyikan text
+	
+	-- Buat ImageButton untuk logo
+	local LogoButton = Instance.new("ImageButton")
+	LogoButton.Name = "LogoButton"
+	LogoButton.Parent = MPrompt
+	LogoButton.BackgroundTransparency = 1
+	LogoButton.Size = UDim2.new(1, 0, 1, 0)
+	LogoButton.Position = UDim2.new(0, 0, 0, 0)
+	LogoButton.Image = Settings.ShowImage or "rbxassetid://125307367032337"
+	LogoButton.ImageTransparency = 1 -- Mulai transparan
+	
+	-- PENTING: Set Active dan ZIndex
+	LogoButton.Active = true
+	LogoButton.ZIndex = 10
+	MPrompt.ZIndex = 100
+	local AspectRatio = Instance.new("UIAspectRatioConstraint")
+	AspectRatio.Parent = LogoButton
+	AspectRatio.AspectRatio = 1
+	
+	-- Connect click event (dengan priority check)
+	local clickDebounce = false
+	LogoButton.MouseButton1Click:Connect(function()
+		if clickDebounce then return end
+		clickDebounce = true
+		
+		task.wait(0.1) -- Small delay to differentiate from drag
+		
+		if not dragging and Debounce == false then
+			if Hidden then
+				Hidden = false
+				Unhide()
+			end
+		end
+		
+		clickDebounce = false
+	end)
+	makeDraggablePrompt(MPrompt, LogoButton)
+	
+elseif Settings.ShowText then
+	MPrompt.Title.Text = 'Show Ui'..Settings.ShowText
+	MPrompt.Active = true
+	MPrompt.ZIndex = 100
+	makeDraggablePrompt(MPrompt, MPrompt)
+end
 	LoadingFrame.Version.TextTransparency = 1
 	LoadingFrame.Title.Text = Settings.LoadingTitle or "Rayfield"
 	LoadingFrame.Subtitle.Text = Settings.LoadingSubtitle or "Interface Suite"
 
 	if Settings.LoadingTitle ~= "Rayfield Interface Suite" then
-		LoadingFrame.Version.Text = "by daanujs"
+		LoadingFrame.Version.Text = "#DJSTEST"
 	end
 
 	if Settings.Icon and Settings.Icon ~= 0 and Topbar:FindFirstChild('Icon') then
@@ -3693,7 +3822,7 @@ if Topbar:FindFirstChild('Settings') then
 				end
 			end
 
-			Elements.UIPageLayout:JumpTo(Elements['Rayfield Settings'])
+			Elements.UIPageLayout:JumpTo(Elements['nuSettings'])
 		end)
 	end)
 
@@ -3717,15 +3846,15 @@ hideHotkeyConnection = UserInputService.InputBegan:Connect(function(input, proce
 	end
 end)
 
-if MPrompt then
-	MPrompt.Interact.MouseButton1Click:Connect(function()
-		if Debounce then return end
-		if Hidden then
-			Hidden = false
-			Unhide()
-		end
-	end)
-end
+-- if MPrompt then
+-- 	MPrompt.Interact.MouseButton1Click:Connect(function()
+-- 		if Debounce then return end
+-- 		if Hidden then
+-- 			Hidden = false
+-- 			Unhide()
+-- 		end
+-- 	end)
+-- end
 
 for _, TopbarButton in ipairs(Topbar:GetChildren()) do
 	if TopbarButton.ClassName == "ImageButton" and TopbarButton.Name ~= 'Icon' then
