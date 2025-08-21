@@ -1785,7 +1785,7 @@ local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
                             
                         },
                         ["footer"] = {
-                            ["text"] = "Fish It Tracker • " .. os.date("%Y-%m-%d %H:%M:%S")
+                            ["text"] = "https://discord.gg/uwXYuxj6cF • " .. os.date("%Y-%m-%d %H:%M:%S")
                         },
                         ["thumbnail"] = {
                             ["url"] = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=150&height=150&format=png"
