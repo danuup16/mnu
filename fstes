@@ -1773,16 +1773,15 @@ local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
                         ["color"] = tierInfo.color,
                         ["fields"] = {
                            {
-                                ["name"] = "**-> Username**",
-                                ["value"] = "> "..player.Name,
+                                ["name"] = "**-> Profil**",
+                                ["value"] = "** Username:** "..player.Name,
                                 ["inline"] = false
                             },
                             {
                                 ["name"] = "**-> Info** ",
-                                ["value"] = "> 🐟 Fish: " .. fullItemName .. "\n > ⚖️ Weight: "..formatWeight(itemData.Weight, weight).."\n > 💰 Sell Price: ".. (itemData.SellPrice or 0) .."\n > ⭐ Tier: "..tierInfo.name .. " (T" .. (itemData.Tier or 1) .. ")",
+                                ["value"] = "** 🐟 Fish:** " .. fullItemName .. "\n ** ⚖️ Weight:** "..formatWeight(itemData.Weight, weight).."\n ** 💰 Sell Price:** ".. (itemData.SellPrice or 0) .."\n > ⭐ Tier: "..tierInfo.name .. " (T" .. (itemData.Tier or 1) .. ")",
                                 ["inline"] = false
                             }
-                            
                         },
                         ["footer"] = {
                             ["text"] = "https://discord.gg/uwXYuxj6cF • " .. os.date("%Y-%m-%d %H:%M:%S")
@@ -2235,7 +2234,7 @@ local WebhookToggle = WebhookTab:CreateToggle({
 })
 -- Test Webhook Button
 local TestWebhookButton = WebhookTab:CreateButton({
-    Name = "🧪 Test Webhook",
+    Name = "Test Webhook",
     Callback = function()
         if webhookURL == "" then
             Rayfield:Notify({
@@ -2267,37 +2266,21 @@ local TestWebhookButton = WebhookTab:CreateButton({
     end,
 })
 local ResetWebhookButton = WebhookTab:CreateButton({
-    Name = "🔄 Reset Webhook",
+    Name = "Reset Webhook",
     Callback = function()
-        -- Stop monitoring if active
         if isWebhookActive then
             WebhookToggle:Set(false)
         end
-        
-        -- Clear webhook URL
         webhookURL = ""
         WebhookInput:Set("")
-        
-        -- Reset all variables
         httpRetryCount = 0
         lastInventoryState = {}
-        
-        Rayfield:Notify({
-            Title = "Webhook Reset Complete",
-            Content = "URL cleared and system reset",
-            Duration = 5,
-            Image = "bell-ring",
-        })
     end,
 })
--- Fish Info Paragraphs and Toggles (Organized by tier)
-
--- SECRET FISH SECTION
 local SecretParagraph = WebhookTab:CreateParagraph({
     Title = "---===Secret===---",
     Content = ""
 })
-
 local GiantSquidToggle = WebhookTab:CreateToggle({
     Name = "Giant Squid",
     CurrentValue = false,
@@ -2322,22 +2305,11 @@ local FrostbornSharkToggle = WebhookTab:CreateToggle({
     Flag = "frostbornshark",
     Callback = function(Value)
         specificFishEnabled[136] = Value
-        
-        if Value then
-            Rayfield:Notify({
-                Title = "Frostborn Shark Enabled",
-                Content = "Will send Frostborn Shark to webhook",
-                Duration = 3,
-                Image = "bell-ring",
-            })
-        end
     end,
 })
-
--- MYTHIC FISH SECTION
 local MythicParagraph = WebhookTab:CreateParagraph({
     Title = "---===Mythic===---", 
-    Content = "Tier 6 Fish - Very Rare"
+    Content = ""
 })
 
 local DottedStingrayToggle = WebhookTab:CreateToggle({
@@ -2411,8 +2383,6 @@ local BlueflameRayToggle = WebhookTab:CreateToggle({
         specificFishEnabled[47] = Value
     end,
 })
-
--- LEGENDARY FISH SECTION
 local LegendaryParagraph = WebhookTab:CreateParagraph({
     Title = "---===Legendary===---",
     Content = ""
@@ -2507,8 +2477,6 @@ local EnchantedAngelfishToggle = WebhookTab:CreateToggle({
         specificFishEnabled[14] = Value
     end,
 })
-
--- UNCOMMON FISH SECTION
 local UncommonParagraph = WebhookTab:CreateParagraph({
     Title = "---===Uncommon===---",
     Content = ""
