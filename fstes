@@ -368,9 +368,11 @@ local noclipp = PlayerTab:CreateToggle({
 -- Auto Trade Feature - Tambahkan di PlayerTab setelah Anti AFK toggle
 
 local isAutoTradeActive = false
+local isAutoGiveActive = false
 local originalOnClientInvoke = nil
+local originalCreateTradePrompt = nil
 
--- Function to hook the trade response
+-- Function to hook the trade response (for receiving trades)
 local function setupAutoTrade()
     local success, error = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -417,6 +419,59 @@ local function setupAutoTrade()
     return success
 end
 
+-- Function to hook the give prompt (for giving items)
+local function setupAutoGive()
+    local success, error = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        
+        -- Try to find the ItemTradingController
+        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
+        if not Controllers then
+            warn("Controllers folder not found!")
+            return false
+        end
+        
+        local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
+        if not ItemTradingController then
+            warn("ItemTradingController not found!")
+            return false
+        end
+        
+        -- Get the module
+        local controller = require(ItemTradingController)
+        
+        -- Store original CreateTradePrompt function
+        if not originalCreateTradePrompt then
+            originalCreateTradePrompt = controller.CreateTradePrompt
+        end
+        
+        -- Override CreateTradePrompt to auto-return true for giving
+        controller.CreateTradePrompt = function(self, itemData, itemInfo, tradeInfo)
+            if isAutoGiveActive and tradeInfo.target then
+                -- If auto give is active and we're giving to someone, auto-accept
+                local Promise = require(ReplicatedStorage.Packages.Promise)
+                return Promise.resolve(true)
+            else
+                -- Use original function
+                if originalCreateTradePrompt then
+                    return originalCreateTradePrompt(self, itemData, itemInfo, tradeInfo)
+                else
+                    local Promise = require(ReplicatedStorage.Packages.Promise)
+                    return Promise.reject("Original function not found")
+                end
+            end
+        end
+        
+        return true
+    end)
+    
+    if not success then
+        warn("Auto give setup error: " .. tostring(error))
+        return false
+    end
+    return success
+end
+
 -- Function to restore original trade behavior
 local function disableAutoTrade()
     local success, error = pcall(function()
@@ -446,9 +501,37 @@ local function disableAutoTrade()
     return success
 end
 
--- Auto Trade Toggle
+-- Function to restore original give behavior
+local function disableAutoGive()
+    local success, error = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
+        
+        if Controllers then
+            local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
+            if ItemTradingController then
+                local controller = require(ItemTradingController)
+                
+                if originalCreateTradePrompt then
+                    controller.CreateTradePrompt = originalCreateTradePrompt
+                    return true
+                end
+            end
+        end
+        
+        return false
+    end)
+    
+    if not success then
+        warn("Disable auto give error: " .. tostring(error))
+        return false
+    end
+    return success
+end
+
+-- Auto Accept Trade Toggle (for receiving trades)
 local autoTrade = PlayerTab:CreateToggle({
-    Name = "Auto Accept Trade",
+    Name = "Auto Accept Trade (Receive)",
     CurrentValue = false,
     Flag = "autotrade",
     Callback = function(Value)
@@ -457,8 +540,8 @@ local autoTrade = PlayerTab:CreateToggle({
                 if setupAutoTrade() then
                     isAutoTradeActive = true
                     Rayfield:Notify({
-                        Title = "Auto Trade Enabled",
-                        Content = "All trade requests will be automatically accepted",
+                        Title = "Auto Accept Enabled",
+                        Content = "All incoming trade requests will be automatically accepted",
                         Duration = 5,
                         Image = "check",
                     })
@@ -466,8 +549,8 @@ local autoTrade = PlayerTab:CreateToggle({
                     -- If setup failed, turn off the toggle
                     autoTrade:Set(false)
                     Rayfield:Notify({
-                        Title = "Auto Trade Failed",
-                        Content = "Could not enable auto trade",
+                        Title = "Auto Accept Failed",
+                        Content = "Could not enable auto accept trade",
                         Duration = 5,
                         Image = "x",
                     })
@@ -478,8 +561,50 @@ local autoTrade = PlayerTab:CreateToggle({
                 isAutoTradeActive = false
                 disableAutoTrade()
                 Rayfield:Notify({
-                    Title = "Auto Trade Disabled",
+                    Title = "Auto Accept Disabled",
                     Content = "Trade prompts will show normally",
+                    Duration = 5,
+                    Image = "info",
+                })
+            end
+        end
+    end,
+})
+
+-- Auto Give Toggle (for giving items - removes "Would you like to give" prompt)
+local autoGive = PlayerTab:CreateToggle({
+    Name = "Auto Give Items (No Prompt)",
+    CurrentValue = false,
+    Flag = "autogive",
+    Callback = function(Value)
+        if Value then
+            if not isAutoGiveActive then
+                if setupAutoGive() then
+                    isAutoGiveActive = true
+                    Rayfield:Notify({
+                        Title = "Auto Give Enabled",
+                        Content = "Press L to give items without confirmation prompt",
+                        Duration = 5,
+                        Image = "check",
+                    })
+                else
+                    -- If setup failed, turn off the toggle
+                    autoGive:Set(false)
+                    Rayfield:Notify({
+                        Title = "Auto Give Failed",
+                        Content = "Could not enable auto give",
+                        Duration = 5,
+                        Image = "x",
+                    })
+                end
+            end
+        else
+            if isAutoGiveActive then
+                isAutoGiveActive = false
+                disableAutoGive()
+                Rayfield:Notify({
+                    Title = "Auto Give Disabled",
+                    Content = "Give prompts will show normally",
                     Duration = 5,
                     Image = "info",
                 })
