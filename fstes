@@ -2082,7 +2082,7 @@ local ResetWebhookButton = WebhookTab:CreateButton({
     end,
 })
 local SecretParagraph = WebhookTab:CreateParagraph({
-    Title = "                                    ---===Secret===---",
+    Title = "                                           ---===Secret===---",
     Content = ""
 })
 local GiantSquidToggle = WebhookTab:CreateToggle({
@@ -2112,7 +2112,7 @@ local FrostbornSharkToggle = WebhookTab:CreateToggle({
     end,
 })
 local MythicParagraph = WebhookTab:CreateParagraph({
-    Title = "                                       ---===Mythic===---", 
+    Title = "                                           ---===Mythic===---", 
     Content = ""
 })
 
@@ -2188,7 +2188,7 @@ local BlueflameRayToggle = WebhookTab:CreateToggle({
     end,
 })
 local LegendaryParagraph = WebhookTab:CreateParagraph({
-    Title = "                                       ---===Legendary===---",
+    Title = "                                           ---===Legendary===---",
     Content = ""
 })
 
@@ -2282,7 +2282,7 @@ local EnchantedAngelfishToggle = WebhookTab:CreateToggle({
     end,
 })
 local UncommonParagraph = WebhookTab:CreateParagraph({
-    Title = "---===Uncommon===---",
+    Title = "                                       ---===Uncommon===---",
     Content = ""
 })
 
