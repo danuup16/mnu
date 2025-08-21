@@ -2241,7 +2241,8 @@ local WebhookToggle = WebhookTab:CreateToggle({
 
 -- SECRET FISH SECTION
 local SecretParagraph = WebhookTab:CreateParagraph({
-    Title = "---===Secret===---"
+    Title = "---===Secret===---",
+    Content = "Tier 7+ Fish - Extremely Rare"
 })
 
 local GiantSquidToggle = WebhookTab:CreateToggle({
@@ -2269,13 +2270,21 @@ local FrostbornSharkToggle = WebhookTab:CreateToggle({
     Callback = function(Value)
         specificFishEnabled[136] = Value
         
-        
+        if Value then
+            Rayfield:Notify({
+                Title = "Frostborn Shark Enabled",
+                Content = "Will send Frostborn Shark to webhook",
+                Duration = 3,
+                Image = "bell-ring",
+            })
+        end
     end,
 })
 
 -- MYTHIC FISH SECTION
 local MythicParagraph = WebhookTab:CreateParagraph({
-    Title = "---===Mythic===---"
+    Title = "---===Mythic===---", 
+    Content = "Tier 6 Fish - Very Rare"
 })
 
 local DottedStingrayToggle = WebhookTab:CreateToggle({
@@ -2352,7 +2361,8 @@ local BlueflameRayToggle = WebhookTab:CreateToggle({
 
 -- LEGENDARY FISH SECTION
 local LegendaryParagraph = WebhookTab:CreateParagraph({
-    Title = "---===Legendary===---"
+    Title = "---===Legendary===---",
+    Content = "Tier 5 Fish - Rare"
 })
 
 local YellowfinTunaToggle = WebhookTab:CreateToggle({
@@ -2447,7 +2457,8 @@ local EnchantedAngelfishToggle = WebhookTab:CreateToggle({
 
 -- UNCOMMON FISH SECTION
 local UncommonParagraph = WebhookTab:CreateParagraph({
-    Title = "---===Uncommon===---"
+    Title = "---===Uncommon===---",
+    Content = "Tier 2 Fish - Common but trackable"
 })
 
 local PilotFishToggle = WebhookTab:CreateToggle({
