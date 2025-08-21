@@ -1767,19 +1767,19 @@ local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
                 end
                 
                 local data = {
-                    ["username"] = "Fish It Tracker",
+                    ["username"] = "#DJSTEST",
                     ["embeds"] = {{
-                        ["title"] = "🎣 New Fish Caught!",
+                        ["title"] = "#DJSTEST - Fish It",
                         ["color"] = tierInfo.color,
                         ["fields"] = {
                            {
-                                ["name"] = "👤 Player",
-                                ["value"] = player.Name,
+                                ["name"] = "-> Player",
+                                ["value"] = ">"..player.Name,
                                 ["inline"] = false
                             },
                             {
-                                ["name"] = "🐟 Fish Name",
-                                ["value"] = "**" .. fullItemName .. "**\n⚖️ Weight: "..formatWeight(itemData.Weight, weight).."\n💰 Sell Price: ".. (itemData.SellPrice or 0) .."\n⭐ Tier: "..tierInfo.name .. " (T" .. (itemData.Tier or 1) .. ")",
+                                ["name"] = "-> Info ",
+                                ["value"] = "> 🐟 Fish: " .. fullItemName .. "\n⚖️ Weight: "..formatWeight(itemData.Weight, weight).."\n💰 Sell Price: ".. (itemData.SellPrice or 0) .."\n⭐ Tier: "..tierInfo.name .. " (T" .. (itemData.Tier or 1) .. ")",
                                 ["inline"] = false
                             }
                             
