@@ -1773,13 +1773,13 @@ local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
                         ["color"] = tierInfo.color,
                         ["fields"] = {
                            {
-                                ["name"] = "-> Player",
-                                ["value"] = ">"..player.Name,
+                                ["name"] = "**-> Username**",
+                                ["value"] = "> "..player.Name,
                                 ["inline"] = false
                             },
                             {
-                                ["name"] = "-> Info ",
-                                ["value"] = "> 🐟 Fish: " .. fullItemName .. "\n⚖️ Weight: "..formatWeight(itemData.Weight, weight).."\n💰 Sell Price: ".. (itemData.SellPrice or 0) .."\n⭐ Tier: "..tierInfo.name .. " (T" .. (itemData.Tier or 1) .. ")",
+                                ["name"] = "**-> Info** ",
+                                ["value"] = "> 🐟 Fish: " .. fullItemName .. "\n> ⚖️ Weight: "..formatWeight(itemData.Weight, weight).."\n> 💰 Sell Price: ".. (itemData.SellPrice or 0) .."\n> ⭐ Tier: "..tierInfo.name .. " (T" .. (itemData.Tier or 1) .. ")",
                                 ["inline"] = false
                             }
                             
