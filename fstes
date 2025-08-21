@@ -491,7 +491,7 @@ local autoTrade = PlayerTab:CreateToggle({
       local fishingDelay = 2.3 
       local isAutoPerfectActive = false
       local isAutoAmazingActive = false
-      local toolRefreshInterval = 10 -- Refresh tool every 10 seconds
+      local toolRefreshInterval = 300 -- Refresh tool every 5 minutes (300 seconds)
       local lastToolRefreshTime = 0
 
    local function equipFishingTool()
@@ -543,13 +543,10 @@ local autoTrade = PlayerTab:CreateToggle({
 
    local function refreshFishingTool()
       local success, error = pcall(function()
-         print("[AUTO FISHING] Refreshing fishing tool...")
-         -- Unequip first
          if unequipFishingTool() then
             wait(0.5) -- Small delay between unequip and equip
             -- Equip again
             if equipFishingTool() then
-               print("[AUTO FISHING] Tool refresh completed successfully")
                return true
             else
                warn("[AUTO FISHING] Failed to re-equip tool after refresh")
@@ -611,10 +608,9 @@ local autoTrade = PlayerTab:CreateToggle({
             -- Wait a bit after fishing completed to ensure it's fully processed
             task.wait(0.5)
             
-            -- Check if it's time to refresh tool (every 10 seconds)
+            -- Check if it's time to refresh tool (every 5 minutes)
             local currentTime = tick()
             if currentTime - lastToolRefreshTime >= toolRefreshInterval then
-                print("[AUTO FISHING] Time for tool refresh (", math.floor(currentTime - lastToolRefreshTime), "seconds since last refresh)")
                 if refreshFishingTool() then
                     lastToolRefreshTime = currentTime
                     -- Small delay after refresh before continuing
@@ -658,58 +654,9 @@ end
                isAutoFishActive = false 
                spawn(function()
                   if unequipFishingTool() then
-                     print("[AUTO FISHING] Tool unequipped on disable")
                   end
                end)
             end
-         end
-      end,
-   })
-
-   -- Tool Refresh Interval Slider
-   local ToolRefreshSlider = fishTab:CreateSlider({
-      Name = "Tool Refresh Interval",
-      Range = {5, 60},
-      Increment = 5,
-      Suffix = "seconds",
-      CurrentValue = toolRefreshInterval,
-      Flag = "ToolRefreshInterval",
-      Callback = function(Value)
-         toolRefreshInterval = Value
-         print("[AUTO FISHING] Tool refresh interval set to", Value, "seconds")
-      end,
-   })
-
-   -- Manual Tool Refresh Button
-   local ManualRefreshButton = fishTab:CreateButton({
-      Name = "Manual Tool Refresh",
-      Callback = function()
-         if isAutoFishActive then
-            spawn(function()
-               if refreshFishingTool() then
-                  lastToolRefreshTime = tick()
-                  Rayfield:Notify({
-                     Title = "Tool Refreshed",
-                     Content = "Fishing tool manually refreshed",
-                     Duration = 3,
-                     Image = "check",
-                  })
-               else
-                  Rayfield:Notify({
-                     Title = "Refresh Failed", 
-                     Content = "Failed to refresh fishing tool",
-                     Duration = 3,
-                     Image = "x",
-                  })
-               end
-            end)
-         else
-            Rayfield:Notify({
-               Title = "Auto Fishing Disabled",
-               Content = "Please enable auto fishing first",
-               Duration = 3,
-               Image = "info",
-            })
          end
       end,
    })
@@ -1874,7 +1821,6 @@ local FishDropdown = WebhookTab:CreateDropdown({
             local fishId = fishNameToId[fishName]
             if fishId then
                 specificFishEnabled[fishId] = true
-                print("✅ Enabled:", fishName, "ID:", fishId)
             end
         end
         local selectedCount = #Options
@@ -2168,7 +2114,6 @@ local function startEventMonitoring()
                     if isWebhookActive then
                         spawn(function()
                             wait(2)
-                            print("Fishing completed, checking for new fish...")
                             checkForNewFish()
                         end)
                     end
