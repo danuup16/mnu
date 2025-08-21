@@ -2467,6 +2467,16 @@ local PilotFishToggle = WebhookTab:CreateToggle({
     Flag = "pilotfish",
     Callback = function(Value)
         specificFishEnabled[140] = Value
+        print("🐟 Pilot Fish toggle set to:", Value, "for ID 140")
+        
+        if Value then
+            Rayfield:Notify({
+                Title = "Pilot Fish Enabled",
+                Content = "Will send Pilot Fish to webhook",
+                Duration = 3,
+                Image = "bell-ring",
+            })
+        end
     end,
 })
 
@@ -2476,7 +2486,7 @@ local BlackcapBassletToggle = WebhookTab:CreateToggle({
     Flag = "blackcapbasslet",
     Callback = function(Value)
         specificFishEnabled[182] = Value
-        
+        print("🐟 Blackcap Basslet toggle set to:", Value, "for ID 182")
     end,
 })
 
@@ -2486,7 +2496,7 @@ local SilverTunaToggle = WebhookTab:CreateToggle({
     Flag = "silvertuna",
     Callback = function(Value)
         specificFishEnabled[139] = Value
-        
+        print("🐟 Silver Tuna toggle set to:", Value, "for ID 139")
         
         if Value then
             Rayfield:Notify({
@@ -2505,13 +2515,13 @@ local ParrotFishToggle = WebhookTab:CreateToggle({
     Flag = "parrotfish",
     Callback = function(Value)
         specificFishEnabled[186] = Value
-        
+        print("🐟 Parrot Fish toggle set to:", Value, "for ID 186")
     end,
 })
 
 -- Quick Action Buttons
 local DeselectAllButton = WebhookTab:CreateButton({
-    Name = "Deselect All ",
+    Name = "Deselect All Fish",
     Callback = function()
         -- Disable all specific fish
         -- Secret
@@ -2554,7 +2564,7 @@ local DeselectAllButton = WebhookTab:CreateButton({
 
 -- Test Webhook Button
 local TestWebhookButton = WebhookTab:CreateButton({
-    Name = "Test Webhook",
+    Name = "🧪 Test Webhook",
     Callback = function()
         if webhookURL == "" then
             Rayfield:Notify({
@@ -2585,9 +2595,9 @@ local TestWebhookButton = WebhookTab:CreateButton({
         })
     end,
 })
-
+-- Reset Webhook Button (New)
 local ResetWebhookButton = WebhookTab:CreateButton({
-    Name = "Reset Webhook System",
+    Name = "🔄 Reset Webhook System",
     Callback = function()
         -- Stop monitoring
         if isWebhookActive then
@@ -2616,7 +2626,7 @@ local ResetWebhookButton = WebhookTab:CreateButton({
 })
 -- Clear Webhook Button
 local ClearWebhookButton = WebhookTab:CreateButton({
-    Name = " Clear Webhook URL",
+    Name = "🗑️ Clear Webhook URL",
     Callback = function()
         webhookURL = ""
         WebhookInput:Set("")
