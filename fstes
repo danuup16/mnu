@@ -371,6 +371,8 @@ local isAutoTradeActive = false
 local isAutoGiveActive = false
 local autoTradeConnection = nil
 local autoGiveConnection = nil
+local hookApplied = false
+local originalCreateTradePrompt = nil
 
 -- Function to find and click Yes button on trade prompts
 local function findAndClickYesButton()
@@ -495,12 +497,13 @@ local function setupAutoTrade()
             if ItemTradingController then
                 local controller = require(ItemTradingController)
                 
-                -- Store original CreateTradePrompt function
-                if not controller.originalCreateTradePrompt then
-                    controller.originalCreateTradePrompt = controller.CreateTradePrompt
+                -- Store original CreateTradePrompt function only once
+                if not originalCreateTradePrompt and controller.CreateTradePrompt then
+                    originalCreateTradePrompt = controller.CreateTradePrompt
+                    print("[AUTO ACCEPT] Original function stored")
                 end
                 
-                -- Override CreateTradePrompt to handle both incoming and outgoing trades
+                -- Always reapply the hook to ensure it's active
                 controller.CreateTradePrompt = function(self, itemData, itemInfo, tradeInfo)
                     -- Check if it's an incoming trade (has sender) and auto accept is enabled
                     if isAutoTradeActive and tradeInfo and tradeInfo.sender then
@@ -519,15 +522,34 @@ local function setupAutoTrade()
                     end
                     
                     -- Use original function for normal operation
-                    if controller.originalCreateTradePrompt then
-                        return controller.originalCreateTradePrompt(self, itemData, itemInfo, tradeInfo)
+                    if originalCreateTradePrompt then
+                        return originalCreateTradePrompt(self, itemData, itemInfo, tradeInfo)
                     else
                         local Promise = require(ReplicatedStorage.Packages.Promise)
                         return Promise.reject("Original function not found")
                     end
                 end
                 
-                print("[AUTO ACCEPT] Successfully hooked ItemTradingController for direct accept")
+                hookApplied = true
+                print("[AUTO ACCEPT] Hook applied successfully")
+                
+                -- Add a periodic check to ensure hook stays active
+                if autoTradeConnection then
+                    autoTradeConnection:Disconnect()
+                end
+                
+                autoTradeConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                    -- Check every 5 seconds if hook is still active
+                    if tick() % 5 < 0.1 then
+                        local currentController = require(ItemTradingController)
+                        if currentController.CreateTradePrompt ~= controller.CreateTradePrompt then
+                            print("[AUTO ACCEPT] Hook lost, reapplying...")
+                            -- Reapply hook
+                            currentController.CreateTradePrompt = controller.CreateTradePrompt
+                        end
+                    end
+                end)
+                
                 return true
             end
         end
@@ -614,9 +636,11 @@ local function disableAutoTrade()
             local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
             if ItemTradingController then
                 local controller = require(ItemTradingController)
-                if controller.originalCreateTradePrompt then
-                    controller.CreateTradePrompt = controller.originalCreateTradePrompt
-                    print("[AUTO ACCEPT] Restored ItemTradingController")
+                if originalCreateTradePrompt then
+                    controller.CreateTradePrompt = originalCreateTradePrompt
+                    print("[AUTO ACCEPT] Restored original function")
+                else
+                    print("[AUTO ACCEPT] Warning: No original function to restore")
                 end
             end
         end
@@ -627,6 +651,7 @@ local function disableAutoTrade()
             print("[AUTO ACCEPT] Stopped monitoring")
         end
         
+        hookApplied = false
         return true
     end)
     
@@ -670,80 +695,41 @@ local function disableAutoGive()
     return success
 end
 
--- Auto Accept Trade Toggle (for receiving trades) - Direct Accept
+-- Unified Auto Trade Toggle (handles both receiving and giving)
 local autoTrade = PlayerTab:CreateToggle({
-    Name = "Auto Accept Trade (No Prompt)",
+    Name = "Auto Trade (Give & Accept)",
     CurrentValue = false,
     Flag = "autotrade",
     Callback = function(Value)
         if Value then
-            if not isAutoTradeActive then
+            if not isAutoTradeActive and not isAutoGiveActive then
                 if setupAutoTrade() then
                     isAutoTradeActive = true
+                    isAutoGiveActive = true
                     Rayfield:Notify({
-                        Title = "Auto Accept Enabled",
-                        Content = "Incoming trades will be accepted directly without any prompt",
+                        Title = "Auto Trade Enabled",
+                        Content = "Both giving (L) and accepting trades will work without prompts",
                         Duration = 5,
                         Image = "check",
                     })
                 else
                     autoTrade:Set(false)
                     Rayfield:Notify({
-                        Title = "Auto Accept Failed",
-                        Content = "Could not enable auto accept trade",
+                        Title = "Auto Trade Failed",
+                        Content = "Could not enable auto trade",
                         Duration = 5,
                         Image = "x",
                     })
                 end
             end
         else
-            if isAutoTradeActive then
+            if isAutoTradeActive or isAutoGiveActive then
                 isAutoTradeActive = false
+                isAutoGiveActive = false
                 disableAutoTrade()
                 Rayfield:Notify({
-                    Title = "Auto Accept Disabled",
+                    Title = "Auto Trade Disabled",
                     Content = "Trade prompts will show normally",
-                    Duration = 5,
-                    Image = "info",
-                })
-            end
-        end
-    end,
-})
-
--- Auto Give Toggle (for giving items - removes "Would you like to give" prompt)
-local autoGive = PlayerTab:CreateToggle({
-    Name = "Auto Give Items (No Prompt)",
-    CurrentValue = false,
-    Flag = "autogive",
-    Callback = function(Value)
-        if Value then
-            if not isAutoGiveActive then
-                if setupAutoGive() then
-                    isAutoGiveActive = true
-                    Rayfield:Notify({
-                        Title = "Auto Give Enabled",
-                        Content = "Press L to give items without confirmation prompt",
-                        Duration = 5,
-                        Image = "check",
-                    })
-                else
-                    autoGive:Set(false)
-                    Rayfield:Notify({
-                        Title = "Auto Give Failed",
-                        Content = "Could not enable auto give",
-                        Duration = 5,
-                        Image = "x",
-                    })
-                end
-            end
-        else
-            if isAutoGiveActive then
-                isAutoGiveActive = false
-                disableAutoGive()
-                Rayfield:Notify({
-                    Title = "Auto Give Disabled",
-                    Content = "Give prompts will show normally",
                     Duration = 5,
                     Image = "info",
                 })
@@ -758,12 +744,12 @@ local DebugTradeButton = PlayerTab:CreateButton({
     Callback = function()
         local success, error = pcall(function()
             local ReplicatedStorage = game:GetService("ReplicatedStorage")
-            local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
             
             print("=== TRADE DEBUG INFO ===")
-            print("PlayerGui found:", PlayerGui ~= nil)
-            print("Auto trade active:", isAutoTradeActive)
+            print("Auto accept active:", isAutoTradeActive)
             print("Auto give active:", isAutoGiveActive)
+            print("Hook applied:", hookApplied)
+            print("Original function stored:", originalCreateTradePrompt ~= nil)
             
             -- Check Controllers
             local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
@@ -772,29 +758,10 @@ local DebugTradeButton = PlayerTab:CreateButton({
             if Controllers then
                 local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
                 print("ItemTradingController found:", ItemTradingController ~= nil)
-            end
-            
-            -- Check for active prompts
-            if PlayerGui then
-                print("Checking for active prompts...")
-                for _, gui in pairs(PlayerGui:GetChildren()) do
-                    if gui:IsA("ScreenGui") then
-                        for _, desc in pairs(gui:GetDescendants()) do
-                            if desc:IsA("TextLabel") and desc.Text then
-                                if string.find(desc.Text, "Accept") or 
-                                   string.find(desc.Text, "Would you like") or
-                                   string.find(desc.Text, "trade") then
-                                    print("Found potential trade prompt:", desc.Text)
-                                end
-                            end
-                            if desc:IsA("TextButton") then
-                                print("Found button:", desc.Text)
-                            end
-                            if desc:IsA("ImageButton") then
-                                print("Found ImageButton in:", desc.Parent.Name)
-                            end
-                        end
-                    end
+                
+                if ItemTradingController then
+                    local controller = require(ItemTradingController)
+                    print("CreateTradePrompt exists:", controller.CreateTradePrompt ~= nil)
                 end
             end
             
@@ -820,22 +787,35 @@ local DebugTradeButton = PlayerTab:CreateButton({
     end,
 })
 
--- Manual test button to try clicking Yes button
-local ManualClickButton = PlayerTab:CreateButton({
-    Name = "Manual Test: Click Yes Button",
+-- Force refresh hook button
+local RefreshHookButton = PlayerTab:CreateButton({
+    Name = "Refresh Auto Accept Hook",
     Callback = function()
-        print("[MANUAL TEST] Attempting to find and click Yes button...")
-        if findAndClickYesButton() then
-            Rayfield:Notify({
-                Title = "Button Clicked",
-                Content = "Successfully found and clicked a button",
-                Duration = 3,
-                Image = "check",
-            })
+        if isAutoTradeActive then
+            print("[REFRESH] Refreshing auto accept hook...")
+            disableAutoTrade()
+            wait(0.5)
+            if setupAutoTrade() then
+                isAutoTradeActive = true
+                Rayfield:Notify({
+                    Title = "Hook Refreshed",
+                    Content = "Auto accept hook has been refreshed",
+                    Duration = 3,
+                    Image = "check",
+                })
+            else
+                autoTrade:Set(false)
+                Rayfield:Notify({
+                    Title = "Refresh Failed",
+                    Content = "Failed to refresh hook",
+                    Duration = 3,
+                    Image = "x",
+                })
+            end
         else
             Rayfield:Notify({
-                Title = "No Button Found",
-                Content = "No trade prompt or Yes button found",
+                Title = "Auto Accept Disabled",
+                Content = "Please enable auto accept first",
                 Duration = 3,
                 Image = "info",
             })
