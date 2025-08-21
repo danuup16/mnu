@@ -1615,11 +1615,10 @@ local specificFishEnabled = {
     [139] = false, -- Silver Tuna
     [186] = false, -- Parrot Fish
 }
-
 -- Webhook URL Input
 local WebhookInput = WebhookTab:CreateInput({
     Name = "Discord Webhook URL",
-    PlaceholderText = "https://discord.com/api/webhooks/...",
+    PlaceholderText = "Input",
     RemoveTextAfterFocusLost = false,
     Callback = function(Text)
         webhookURL = Text
@@ -1634,8 +1633,6 @@ local WebhookInput = WebhookTab:CreateInput({
         end
     end,
 })
-
--- Function to get item data from ReplicatedStorage
 local function getItemData(itemId)
     local success, itemData = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -2198,7 +2195,7 @@ end
 
 -- Webhook Toggle (DEFAULT OFF)
 local WebhookToggle = WebhookTab:CreateToggle({
-    Name = "Enable Webhook Tracking",
+    Name = "Enable Webhook",
     CurrentValue = false,  -- Always start as OFF
     Flag = "webhooktracking",
     Callback = function(Value)
@@ -2236,13 +2233,69 @@ local WebhookToggle = WebhookTab:CreateToggle({
         end
     end,
 })
-
+-- Test Webhook Button
+local TestWebhookButton = WebhookTab:CreateButton({
+    Name = "🧪 Test Webhook",
+    Callback = function()
+        if webhookURL == "" then
+            Rayfield:Notify({
+                Title = "No Webhook URL",
+                Content = "Please enter webhook URL first",
+                Duration = 5,
+                Image = "bell-ring",
+            })
+            return
+        end
+        
+        local testData = {
+            Name = "Test Fish",
+            Type = "Fishes",
+            Tier = 3,
+            SellPrice = 150,
+            Weight = {Default = {Min = 2, Max = 5}},
+            Probability = {Chance = 0.05}
+        }
+        
+        sendWebhook("Test Fish", testData, 3.5, false, nil)
+        
+        Rayfield:Notify({
+            Title = "Test Webhook Sent",
+            Content = "Check your Discord channel",
+            Duration = 5,
+            Image = "bell-ring",
+        })
+    end,
+})
+local ResetWebhookButton = WebhookTab:CreateButton({
+    Name = "🔄 Reset Webhook",
+    Callback = function()
+        -- Stop monitoring if active
+        if isWebhookActive then
+            WebhookToggle:Set(false)
+        end
+        
+        -- Clear webhook URL
+        webhookURL = ""
+        WebhookInput:Set("")
+        
+        -- Reset all variables
+        httpRetryCount = 0
+        lastInventoryState = {}
+        
+        Rayfield:Notify({
+            Title = "Webhook Reset Complete",
+            Content = "URL cleared and system reset",
+            Duration = 5,
+            Image = "bell-ring",
+        })
+    end,
+})
 -- Fish Info Paragraphs and Toggles (Organized by tier)
 
 -- SECRET FISH SECTION
 local SecretParagraph = WebhookTab:CreateParagraph({
     Title = "---===Secret===---",
-    Content = "Tier 7+ Fish - Extremely Rare"
+    Content = ""
 })
 
 local GiantSquidToggle = WebhookTab:CreateToggle({
@@ -2362,7 +2415,7 @@ local BlueflameRayToggle = WebhookTab:CreateToggle({
 -- LEGENDARY FISH SECTION
 local LegendaryParagraph = WebhookTab:CreateParagraph({
     Title = "---===Legendary===---",
-    Content = "Tier 5 Fish - Rare"
+    Content = ""
 })
 
 local YellowfinTunaToggle = WebhookTab:CreateToggle({
@@ -2458,7 +2511,7 @@ local EnchantedAngelfishToggle = WebhookTab:CreateToggle({
 -- UNCOMMON FISH SECTION
 local UncommonParagraph = WebhookTab:CreateParagraph({
     Title = "---===Uncommon===---",
-    Content = "Tier 2 Fish - Common but trackable"
+    Content = ""
 })
 
 local PilotFishToggle = WebhookTab:CreateToggle({
@@ -2562,209 +2615,7 @@ local DeselectAllButton = WebhookTab:CreateButton({
     end,
 })
 
--- Test Webhook Button
-local TestWebhookButton = WebhookTab:CreateButton({
-    Name = "🧪 Test Webhook",
-    Callback = function()
-        if webhookURL == "" then
-            Rayfield:Notify({
-                Title = "No Webhook URL",
-                Content = "Please enter webhook URL first",
-                Duration = 5,
-                Image = "bell-ring",
-            })
-            return
-        end
-        
-        local testData = {
-            Name = "Test Fish",
-            Type = "Fishes",
-            Tier = 3,
-            SellPrice = 150,
-            Weight = {Default = {Min = 2, Max = 5}},
-            Probability = {Chance = 0.05}
-        }
-        
-        sendWebhook("Test Fish", testData, 3.5, false, nil)
-        
-        Rayfield:Notify({
-            Title = "Test Webhook Sent",
-            Content = "Check your Discord channel",
-            Duration = 5,
-            Image = "bell-ring",
-        })
-    end,
-})
 
--- Debug Button (Enhanced)
-local DebugButton = WebhookTab:CreateButton({
-    Name = "🔍 Debug Fish Filter",
-    Callback = function()
-        print("=== FISH FILTER DEBUG ===")
-        print("Active toggles:")
-        
-        local activeCount = 0
-        for fishId, enabled in pairs(specificFishEnabled) do
-            if enabled then
-                activeCount = activeCount + 1
-                local itemData = getItemData(fishId)
-                if itemData then
-                    print("  ✅", itemData.Name, "(ID:", fishId .. ")")
-                else
-                    print("  ❓ Unknown fish ID:", fishId)
-                end
-            end
-        end
-        
-        if activeCount == 0 then
-            print("  ❌ NO FISH ENABLED - Webhook will not send anything!")
-        else
-            print("  Total enabled fish:", activeCount)
-        end
-        
-        print("=== END DEBUG ===")
-        
-        Rayfield:Notify({
-            Title = "Filter Debug Complete",
-            Content = activeCount .. " fish enabled. Check console (F9)",
-            Duration = 5,
-            Image = "bell-ring",
-        })
-    end,
-})
-
--- Force Toggle Sync Button (CRITICAL FIX)
-local ForceSyncButton = WebhookTab:CreateButton({
-    Name = "🔄 Force Toggle Sync",
-    Callback = function()
-        print("=== FORCING TOGGLE SYNC ===")
-        
-        -- Force sync all toggles to their UI state
-        local togglePairs = {
-            {140, PilotFishToggle, "Pilot Fish"},
-            {139, SilverTunaToggle, "Silver Tuna"}, 
-            {186, ParrotFishToggle, "Parrot Fish"},
-            {182, BlackcapBassletToggle, "Blackcap Basslet"}
-        }
-        
-        for _, pair in pairs(togglePairs) do
-            local fishId = pair[1]
-            local toggle = pair[2]
-            local fishName = pair[3]
-            
-            if toggle then
-                local toggleValue = toggle.CurrentValue or false
-                specificFishEnabled[fishId] = toggleValue
-                print("🔄 Synced", fishName, "ID:", fishId, "to:", toggleValue)
-            end
-        end
-        
-        print("=== SYNC COMPLETE ===")
-        
-        -- Test after sync
-        print("=== TESTING AFTER SYNC ===")
-        for _, pair in pairs(togglePairs) do
-            local fishId = pair[1]
-            local fishName = pair[3]
-            print("📊", fishName, "ID:", fishId, "enabled:", specificFishEnabled[fishId])
-        end
-        
-        Rayfield:Notify({
-            Title = "Toggle Sync Complete",
-            Content = "All toggles synchronized",
-            Duration = 5,
-            Image = "bell-ring",
-        })
-    end,
-})
-local TestFishIDsButton = WebhookTab:CreateButton({
-    Name = "🔍 Test Fish IDs",
-    Callback = function()
-        print("=== TESTING FISH IDs ===")
-        
-        -- Test specific fish IDs that user reported
-        local testFishIds = {140, 139, 186, 182} -- Pilot Fish, Silver Tuna, Parrot Fish, Blackcap Basslet
-        
-        for _, fishId in pairs(testFishIds) do
-            local itemData = getItemData(fishId)
-            if itemData then
-                print("✅ Found fish ID", fishId .. ":", itemData.Name)
-                print("   Type:", itemData.Type)
-                print("   Tier:", itemData.Tier)
-                print("   Toggle status:", specificFishEnabled[fishId])
-                print("   Would send:", shouldSendFish(itemData))
-            else
-                print("❌ Fish ID", fishId, "not found!")
-            end
-            print("---")
-        end
-        
-        print("=== END TEST ===")
-        
-        Rayfield:Notify({
-            Title = "Fish ID Test Complete",
-            Content = "Check console (F9) for results",
-            Duration = 5,
-            Image = "bell-ring",
-        })
-    end,
-})
-
--- Reset Webhook Button (New)
-local ResetWebhookButton = WebhookTab:CreateButton({
-    Name = "🔄 Reset Webhook System",
-    Callback = function()
-        -- Stop monitoring
-        if isWebhookActive then
-            WebhookToggle:Set(false)
-        end
-        
-        -- Reset all variables
-        httpRetryCount = 0
-        lastInventoryState = {}
-        
-        -- Wait a moment
-        wait(1)
-        
-        -- Restart if webhook URL is set
-        if webhookURL ~= "" then
-            WebhookToggle:Set(true)
-        end
-        
-        Rayfield:Notify({
-            Title = "Webhook System Reset",
-            Content = "All counters and states have been reset",
-            Duration = 5,
-            Image = "bell-ring",
-        })
-    end,
-})
-
--- Webhook Info
-local WebhookParagraph = WebhookTab:CreateParagraph({
-    Title = "Webhook Information",
-    Content = "🎣 This webhook will only track fish you select\n\n📊 How it works:\n• Toggle ON = Fish will be sent to webhook\n• Toggle OFF = Fish will be ignored\n• No toggles active = No webhooks sent\n\n⚠️ Features:\n• Auto-retry on failed requests\n• Thread safety protection\n• Selective fish tracking\n• Only sends what you choose"
-})
-
--- Clear Webhook Button
-local ClearWebhookButton = WebhookTab:CreateButton({
-    Name = "🗑️ Clear Webhook URL",
-    Callback = function()
-        webhookURL = ""
-        WebhookInput:Set("")
-        if isWebhookActive then
-            WebhookToggle:Set(false)
-        end
-        httpRetryCount = 0
-        
-        Rayfield:Notify({
-            Title = "Webhook URL Cleared",
-            Content = "",
-            Duration = 3,
-            Image = "bell-ring",
-        })
-    end,
-})
 Rayfield:LoadConfiguration()
 if isAutoFarmActive then
    print('zzz')
