@@ -1200,7 +1200,7 @@ local function getEventCoordinates(selection)
 end
 detectActiveEvents() -- Initial detection
 EventDropdown = TeleportTab:CreateDropdown({
-    Name = "Active Events & Locations",
+    Name = "Event Active",
     Options = #detectedEvents > 0 and (function()
         local options = {"Select Event/Location..."}
         for _, event in ipairs(detectedEvents) do
@@ -1241,7 +1241,7 @@ local RefreshEventsButton = TeleportTab:CreateButton({
     end,
 })
 local TeleportEventButton = TeleportTab:CreateButton({
-    Name = "📍 Teleport to Selected Event",
+    Name = "Teleport Event",
     Callback = function()
         if not selectedEvent or selectedEvent == "Select Event/Location..." or selectedEvent == "Nothing" or selectedEvent == "Error events" then
             return
