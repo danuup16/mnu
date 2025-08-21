@@ -329,7 +329,7 @@ local function setupCharacterNoclip()
 end
 game.Players.LocalPlayer.CharacterAdded:Connect(setupCharacterNoclip)
 local noclipp = PlayerTab:CreateToggle({
-    Name = "Noclip",
+    Name = "No Clip",
     CurrentValue = false,
     Flag = "nclip",
     Callback = function(Value)
@@ -826,7 +826,7 @@ local function startAutoFarm()
       player.Character.HumanoidRootPart.CFrame = targetCFrame
       wait(2)
       mancing:Set(true)
-      
+      noclipp:Set(true)
       spawn(function()
          while isAutoFarmActive do
             wait(5)
@@ -848,6 +848,7 @@ end
 local function stopAutoFarm()
    isAutoFarmActive = false
    mancing:Set(false) 
+   noclipp:Set(false)
 end
 local FarmToggle = autofarmTab:CreateToggle({
    Name = "Start Farm",
@@ -1097,15 +1098,15 @@ local function detectActiveEvents()
         end
         local workspaceProps = workspace:FindFirstChild("Props")
         if workspaceProps and workspaceProps:FindFirstChild("Shark Hunt") then
-            table.insert(activeEvents, "Shark Hunt ")
+            table.insert(activeEvents, "Shark Hunt")
         end
         if workspaceProps and workspaceProps:FindFirstChild("Ghost Shark Hunt") then
-            table.insert(activeEvents, "Ghost Shark Hunt ")
+            table.insert(activeEvents, "Ghost Shark Hunt")
         end
         local lighting = game:GetService("Lighting")
         if lighting:FindFirstChild("SparklingCoveEffect") or 
            (lighting.Brightness > 1.5 and lighting.ColorShift_Top.R > 0.8 and lighting.ColorShift_Top.G > 0.8) then
-            table.insert(activeEvents, "Sparkling Cove ")
+            table.insert(activeEvents, "Sparkling Cove")
         end
         local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
         local wormHuntActive = false
@@ -1122,37 +1123,37 @@ local function detectActiveEvents()
         end
         
         if wormHuntActive or (workspaceProps and workspaceProps:FindFirstChild("Worm Hunt")) then
-            table.insert(activeEvents, "Worm Hunt ")
+            table.insert(activeEvents, "Worm Hunt")
         end
         local adminAreas = workspace:FindFirstChild("AdminAreas") or workspace:FindFirstChild("AdminEvents")
         if adminAreas then
             if adminAreas:FindFirstChild("Shocked") or adminAreas:FindFirstChild("ShockedArea") then
-                table.insert(activeEvents, "Admin - Shocked ")
+                table.insert(activeEvents, "Admin - Shocked")
             end
             if adminAreas:FindFirstChild("BlackHole") or adminAreas:FindFirstChild("Black Hole") then
-                table.insert(activeEvents, "Admin - Black Hole ")
+                table.insert(activeEvents, "Admin - Black Hole")
             end
             if adminAreas:FindFirstChild("GhostWorm") or adminAreas:FindFirstChild("Ghost Worm") then
-                table.insert(activeEvents, "Admin - Ghost Worm ")
+                table.insert(activeEvents, "Admin - Ghost Worm")
             end
             if adminAreas:FindFirstChild("MeteorRain") or adminAreas:FindFirstChild("Meteor Rain") then
-                table.insert(activeEvents, "Admin - Meteor Rain ")
+                table.insert(activeEvents, "Admin - Meteor Rain")
             end
         end
         if lighting.Brightness >= 3.5 and lighting.Ambient.B >= 0.6 and lighting.Ambient.R < 0.4 then
-            table.insert(activeEvents, "Storm ")
+            table.insert(activeEvents, "Storm")
         end
         if lighting.ColorShift_Top.R <= 0.03 and lighting.ColorShift_Top.G <= 0.03 and lighting.ColorShift_Top.B <= 0.03 and
            lighting.Brightness < 1 then
-            table.insert(activeEvents, "Snow ")
+            table.insert(activeEvents, "Snow")
         end
         local atmosphere = lighting:FindFirstChild("Atmosphere")
         if atmosphere and atmosphere.Density >= 1.0 and lighting.Brightness > 1.2 then
-            table.insert(activeEvents, "Wind ")
+            table.insert(activeEvents, "Wind")
         end
         if lighting.Brightness <= 0.4 and 
            lighting.ColorShift_Top.R >= 0.8 and lighting.ColorShift_Top.G >= 0.8 and lighting.ColorShift_Top.B >= 0.8 then
-            table.insert(activeEvents, "Cloudy ")
+            table.insert(activeEvents, "Cloudy")
         end
         
     end)
