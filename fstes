@@ -491,6 +491,8 @@ local autoTrade = PlayerTab:CreateToggle({
       local fishingDelay = 2.3 
       local isAutoPerfectActive = false
       local isAutoAmazingActive = false
+      local toolRefreshInterval = 10 -- Refresh tool every 10 seconds
+      local lastToolRefreshTime = 0
 
    local function equipFishingTool()
       local success, error = pcall(function()
@@ -514,6 +516,7 @@ local autoTrade = PlayerTab:CreateToggle({
       end
       return success
    end
+   
    local function unequipFishingTool()
       local success, error = pcall(function()
          local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -537,6 +540,34 @@ local autoTrade = PlayerTab:CreateToggle({
       end
       return success
    end
+
+   local function refreshFishingTool()
+      local success, error = pcall(function()
+         print("[AUTO FISHING] Refreshing fishing tool...")
+         -- Unequip first
+         if unequipFishingTool() then
+            wait(0.5) -- Small delay between unequip and equip
+            -- Equip again
+            if equipFishingTool() then
+               print("[AUTO FISHING] Tool refresh completed successfully")
+               return true
+            else
+               warn("[AUTO FISHING] Failed to re-equip tool after refresh")
+               return false
+            end
+         else
+            warn("[AUTO FISHING] Failed to unequip tool during refresh")
+            return false
+         end
+      end)
+      
+      if not success then
+         warn("Tool refresh error: " .. tostring(error))
+         return false
+      end
+      return success
+   end
+
    local function performFishingCycle()
     local success, error = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -577,14 +608,30 @@ local autoTrade = PlayerTab:CreateToggle({
         local fishingCompleted = net:FindFirstChild("RE/FishingCompleted")
         if fishingCompleted then
             fishingCompleted:FireServer()
+            -- Wait a bit after fishing completed to ensure it's fully processed
+            task.wait(0.5)
+            
+            -- Check if it's time to refresh tool (every 10 seconds)
+            local currentTime = tick()
+            if currentTime - lastToolRefreshTime >= toolRefreshInterval then
+                print("[AUTO FISHING] Time for tool refresh (", math.floor(currentTime - lastToolRefreshTime), "seconds since last refresh)")
+                if refreshFishingTool() then
+                    lastToolRefreshTime = currentTime
+                    -- Small delay after refresh before continuing
+                    task.wait(1)
+                else
+                    warn("[AUTO FISHING] Tool refresh failed, continuing without refresh")
+                end
+            end
         end
     end)
     if not success then
         warn("Fishing cycle error: " .. tostring(error))
     end
 end
+
    local mancing = fishTab:CreateToggle({
-      Name = "Auto Fish",
+      Name = "Auto Fishing",
       CurrentValue = false,
       Flag = "autofish",
       Callback = function(Value)
@@ -592,6 +639,7 @@ end
             if not isAutoFishActive then
                if equipFishingTool() then
                   isAutoFishActive = true
+                  lastToolRefreshTime = tick() -- Initialize refresh timer
                   wait(1) 
                   spawn(function()
                      while isAutoFishActive do
@@ -603,7 +651,6 @@ end
                         end
                      end
                   end)
-            
                end
             end
          else
@@ -611,12 +658,62 @@ end
                isAutoFishActive = false 
                spawn(function()
                   if unequipFishingTool() then
+                     print("[AUTO FISHING] Tool unequipped on disable")
                   end
                end)
             end
          end
       end,
    })
+
+   -- Tool Refresh Interval Slider
+   local ToolRefreshSlider = fishTab:CreateSlider({
+      Name = "Tool Refresh Interval",
+      Range = {5, 60},
+      Increment = 5,
+      Suffix = "seconds",
+      CurrentValue = toolRefreshInterval,
+      Flag = "ToolRefreshInterval",
+      Callback = function(Value)
+         toolRefreshInterval = Value
+         print("[AUTO FISHING] Tool refresh interval set to", Value, "seconds")
+      end,
+   })
+
+   -- Manual Tool Refresh Button
+   local ManualRefreshButton = fishTab:CreateButton({
+      Name = "Manual Tool Refresh",
+      Callback = function()
+         if isAutoFishActive then
+            spawn(function()
+               if refreshFishingTool() then
+                  lastToolRefreshTime = tick()
+                  Rayfield:Notify({
+                     Title = "Tool Refreshed",
+                     Content = "Fishing tool manually refreshed",
+                     Duration = 3,
+                     Image = "check",
+                  })
+               else
+                  Rayfield:Notify({
+                     Title = "Refresh Failed", 
+                     Content = "Failed to refresh fishing tool",
+                     Duration = 3,
+                     Image = "x",
+                  })
+               end
+            end)
+         else
+            Rayfield:Notify({
+               Title = "Auto Fishing Disabled",
+               Content = "Please enable auto fishing first",
+               Duration = 3,
+               Image = "info",
+            })
+         end
+      end,
+   })
+
       local perfToggle = fishTab:CreateToggle({
     Name = "Auto Perfect",
     CurrentValue = false,
@@ -644,6 +741,7 @@ local AutoAmazingToggle = fishTab:CreateToggle({
         end
     end,
 })
+
 local isInstantReelActive = false
 local instantReelConnection = nil
 
@@ -683,6 +781,7 @@ local function stopInstantReel()
         instantReelConnection = nil
     end
 end
+
 local instantReelToggle = fishTab:CreateToggle({
     Name = "Instant Rail",
     CurrentValue = false,
@@ -696,6 +795,7 @@ local instantReelToggle = fishTab:CreateToggle({
         end
     end,
 })
+
    local Button = fishTab:CreateButton({
       Name = "Sell All Fish",
       Callback = function()
@@ -1694,11 +1794,6 @@ local specificFishEnabled = {
     [24] = false,  -- Starjam Tang
     [16] = false,  -- Magic Tang
     [14] = false,  -- Enchanted Angelfish
-    -- Uncommon Fish
-    [140] = false, -- Pilot Fish
-    [182] = false, -- Blackcap Basslet
-    [139] = false, -- Silver Tuna
-    [186] = false, -- Parrot Fish
 }
 
 -- Webhook URL Input
@@ -1739,11 +1834,6 @@ local FishDropdown = WebhookTab:CreateDropdown({
         "Starjam Tang (Legendary)",
         "Magic Tang (Legendary)",
         "Enchanted Angelfish (Legendary)",
-        -- Uncommon Fish
-        "Pilot Fish (Uncommon)",
-        "Blackcap Basslet (Uncommon)",
-        "Silver Tuna (Uncommon)",
-        "Parrot Fish (Uncommon)"
     },
     CurrentOption = {},
     MultipleOptions = true, -- PENTING: Ini memungkinkan pilihan multiple
@@ -1779,11 +1869,6 @@ local FishDropdown = WebhookTab:CreateDropdown({
             ["Starjam Tang (Legendary)"] = 24,
             ["Magic Tang (Legendary)"] = 16,
             ["Enchanted Angelfish (Legendary)"] = 14,
-            -- Uncommon Fish
-            ["Pilot Fish (Uncommon)"] = 140,
-            ["Blackcap Basslet (Uncommon)"] = 182,
-            ["Silver Tuna (Uncommon)"] = 139,
-            ["Parrot Fish (Uncommon)"] = 186
         }
         for _, fishName in pairs(Options) do
             local fishId = fishNameToId[fishName]
@@ -1809,7 +1894,6 @@ local function getItemData(itemId)
     local success, itemData = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
         local itemsFolder = ReplicatedStorage:FindFirstChild("Items")
-        
         if not itemsFolder then
             return nil
         end
