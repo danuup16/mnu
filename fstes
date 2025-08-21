@@ -1622,7 +1622,7 @@ local WebhookInput = WebhookTab:CreateInput({
 
 -- Fish Selection Dropdown (Mendukung pilihan manual multiple fish)
 local FishDropdown = WebhookTab:CreateDropdown({
-    Name = "🐟 Select Fish to Track (Manual Selection)",
+    Name = "Select Fish",
     Options = {
         -- Secret Fish
         "Giant Squid (Secret)",
@@ -1693,8 +1693,6 @@ local FishDropdown = WebhookTab:CreateDropdown({
             ["Silver Tuna (Uncommon)"] = 139,
             ["Parrot Fish (Uncommon)"] = 186
         }
-        
-        -- Enable selected fish
         for _, fishName in pairs(Options) do
             local fishId = fishNameToId[fishName]
             if fishId then
@@ -1702,8 +1700,6 @@ local FishDropdown = WebhookTab:CreateDropdown({
                 print("✅ Enabled:", fishName, "ID:", fishId)
             end
         end
-        
-        -- Show notification with selected fish names
         local selectedCount = #Options
         if selectedCount > 0 then
             local fishList = ""
@@ -1713,20 +1709,6 @@ local FishDropdown = WebhookTab:CreateDropdown({
                     fishList = fishList .. ", "
                 end
             end
-            
-            Rayfield:Notify({
-                Title = "✅ Fish Selected (" .. selectedCount .. ")",
-                Content = fishList,
-                Duration = 5,
-                Image = "bell-ring",
-            })
-        else
-            Rayfield:Notify({
-                Title = "❌ No Fish Selected", 
-                Content = "Webhook tracking disabled",
-                Duration = 3,
-                Image = "bell-ring",
-            })
         end
     end,
 })
@@ -2144,8 +2126,6 @@ local function stopInventoryMonitoring()
     lastInventoryState = {}
     httpRetryCount = 0
 end
-
--- Webhook Toggle
 local WebhookToggle = WebhookTab:CreateToggle({
     Name = "Enable Webhook",
     CurrentValue = false,  
@@ -2164,8 +2144,6 @@ local WebhookToggle = WebhookTab:CreateToggle({
         end
     end,
 })
-
--- Test Webhook Button
 local TestWebhookButton = WebhookTab:CreateButton({
     Name = "Test Webhook",
     Callback = function()
@@ -2173,7 +2151,7 @@ local TestWebhookButton = WebhookTab:CreateButton({
             return
         end
         local testData = {
-            Name = "Test Fish",
+            Name = "#DJSTEST",
             Type = "Fishes",
             Tier = 3,
             SellPrice = 150,
@@ -2183,8 +2161,6 @@ local TestWebhookButton = WebhookTab:CreateButton({
         sendWebhook("Test Fish", testData, 3.5, false, nil)
     end,
 })
-
--- Reset Webhook Button
 local ResetWebhookButton = WebhookTab:CreateButton({
     Name = "Reset Webhook",
     Callback = function()
@@ -2200,53 +2176,12 @@ local ResetWebhookButton = WebhookTab:CreateButton({
 
 -- Deselect All Button (Reset dropdown)
 local DeselectAllButton = WebhookTab:CreateButton({
-    Name = "🗑️ Deselect All Fish",
+    Name = "Deselect All Fish",
     Callback = function()
-        -- Clear dropdown selection (reset ke kosong)
         FishDropdown:Set({})
-        
-        -- Reset all fish tracking to false
         for fishId, _ in pairs(specificFishEnabled) do
             specificFishEnabled[fishId] = false
         end
-        
-        Rayfield:Notify({
-            Title = "🗑️ All Fish Deselected",
-            Content = "Dropdown reset - No fish will be tracked",
-            Duration = 3,
-            Image = "bell-ring",
-        })
-    end,
-})
-
--- Quick Select Buttons untuk kemudahan (opsional)
-local SelectSecretButton = WebhookTab:CreateButton({
-    Name = "⭐ Select Secret Fish",
-    Callback = function()
-        FishDropdown:Set({"Giant Squid (Secret)", "Frostborn Shark (Secret)"})
-    end,
-})
-
-local SelectMythicButton = WebhookTab:CreateButton({
-    Name = "🔮 Select Mythic Fish", 
-    Callback = function()
-        FishDropdown:Set({
-            "Dotted Stingray (Mythic)", "Abyss Seahorse (Mythic)", "Hawks Turtle (Mythic)",
-            "Hammerhead Shark (Mythic)", "Manta Ray (Mythic)", "Prismy Seahorse (Mythic)",
-            "Loggerhead Turtle (Mythic)", "Blueflame Ray (Mythic)"
-        })
-    end,
-})
-
-local SelectLegendaryButton = WebhookTab:CreateButton({
-    Name = "👑 Select Legendary Fish",
-    Callback = function()
-        FishDropdown:Set({
-            "Yellowfin Tuna (Legendary)", "Chrome Tuna (Legendary)", "Lobster (Legendary)", 
-            "Bumblebee Grouper (Legendary)", "Lavafin Tuna (Legendary)", "Blue Lobster (Legendary)", 
-            "Greenbee Grouper (Legendary)", "Starjam Tang (Legendary)", "Magic Tang (Legendary)", 
-            "Enchanted Angelfish (Legendary)"
-        })
     end,
 })
 Rayfield:LoadConfiguration()
