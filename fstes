@@ -365,7 +365,268 @@ local noclipp = PlayerTab:CreateToggle({
             end
          end,
       })
+-- Auto Trade Feature - Tambahkan di PlayerTab setelah Anti AFK toggle
 
+local isAutoTradeActive = false
+local originalOnClientInvoke = nil
+
+-- Function to hook the trade response
+local function setupAutoTrade()
+    local success, error = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+        
+        if not netFolder or not netFolder:FindFirstChild("net") then
+            warn("Network folder not found!")
+            return false
+        end
+        
+        local net = netFolder.net
+        local awaitTradeResponse = net:FindFirstChild("RF/AwaitTradeResponse")
+        
+        if awaitTradeResponse then
+            -- Store original function if not already stored
+            if not originalOnClientInvoke then
+                originalOnClientInvoke = awaitTradeResponse.OnClientInvoke
+            end
+            
+            -- Override the OnClientInvoke to auto-accept
+            awaitTradeResponse.OnClientInvoke = function(itemData, sender)
+                if isAutoTradeActive then
+                    -- Auto accept trade without showing prompt
+                    return true
+                else
+                    -- Use original function if auto trade is disabled
+                    if originalOnClientInvoke then
+                        return originalOnClientInvoke(itemData, sender)
+                    end
+                    return false
+                end
+            end
+            
+            return true
+        end
+        
+        return false
+    end)
+    
+    if not success then
+        warn("Auto trade setup error: " .. tostring(error))
+        return false
+    end
+    return success
+end
+
+-- Function to restore original trade behavior
+local function disableAutoTrade()
+    local success, error = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+        
+        if not netFolder or not netFolder:FindFirstChild("net") then
+            return false
+        end
+        
+        local net = netFolder.net
+        local awaitTradeResponse = net:FindFirstChild("RF/AwaitTradeResponse")
+        
+        if awaitTradeResponse and originalOnClientInvoke then
+            -- Restore original function
+            awaitTradeResponse.OnClientInvoke = originalOnClientInvoke
+            return true
+        end
+        
+        return false
+    end)
+    
+    if not success then
+        warn("Disable auto trade error: " .. tostring(error))
+        return false
+    end
+    return success
+end
+
+-- Auto Trade Toggle
+local autoTrade = PlayerTab:CreateToggle({
+    Name = "Auto Accept Trade",
+    CurrentValue = false,
+    Flag = "autotrade",
+    Callback = function(Value)
+        if Value then
+            if not isAutoTradeActive then
+                if setupAutoTrade() then
+                    isAutoTradeActive = true
+                    Rayfield:Notify({
+                        Title = "Auto Trade Enabled",
+                        Content = "All trade requests will be automatically accepted",
+                        Duration = 5,
+                        Image = "check",
+                    })
+                else
+                    -- If setup failed, turn off the toggle
+                    autoTrade:Set(false)
+                    Rayfield:Notify({
+                        Title = "Auto Trade Failed",
+                        Content = "Could not enable auto trade",
+                        Duration = 5,
+                        Image = "x",
+                    })
+                end
+            end
+        else
+            if isAutoTradeActive then
+                isAutoTradeActive = false
+                disableAutoTrade()
+                Rayfield:Notify({
+                    Title = "Auto Trade Disabled",
+                    Content = "Trade prompts will show normally",
+                    Duration = 5,
+                    Image = "info",
+                })
+            end
+        end
+    end,
+})
+
+-- Function to send trade to player (manual trade button)
+local function sendTradeToPlayer(targetPlayer)
+    local success, error = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+        
+        if not netFolder or not netFolder:FindFirstChild("net") then
+            warn("Network folder not found!")
+            return false
+        end
+        
+        local net = netFolder.net
+        local canSendTrade = net:FindFirstChild("RF/CanSendTrade")
+        local initiateTrade = net:FindFirstChild("RF/InitiateTrade")
+        
+        if canSendTrade and initiateTrade then
+            -- Check if we can send trade
+            local canTrade = canSendTrade:InvokeServer()
+            if canTrade then
+                -- Get current equipped item
+                local Replion = require(ReplicatedStorage.Packages.Replion)
+                local Client = Replion.Client
+                local dataReplion = Client:WaitReplion("Data")
+                local equippedId = dataReplion:Get("EquippedId")
+                
+                if equippedId then
+                    -- Get the equipped item from inventory
+                    local inventory = dataReplion:Get("Inventory")
+                    local equippedItem = nil
+                    
+                    for category, items in pairs(inventory) do
+                        for uuid, item in pairs(items) do
+                            if uuid == equippedId then
+                                equippedItem = item
+                                break
+                            end
+                        end
+                        if equippedItem then break end
+                    end
+                    
+                    if equippedItem then
+                        -- Send trade
+                        local args = {
+                            [1] = targetPlayer.UserId,
+                            [2] = equippedId
+                        }
+                        initiateTrade:InvokeServer(unpack(args))
+                        
+                        Rayfield:Notify({
+                            Title = "Trade Sent",
+                            Content = "Trade sent to " .. targetPlayer.DisplayName,
+                            Duration = 3,
+                            Image = "check",
+                        })
+                        return true
+                    else
+                        Rayfield:Notify({
+                            Title = "No Item Equipped",
+                            Content = "Please equip an item to trade",
+                            Duration = 3,
+                            Image = "x",
+                        })
+                    end
+                else
+                    Rayfield:Notify({
+                        Title = "No Item Equipped",
+                        Content = "Please equip an item to trade",
+                        Duration = 3,
+                        Image = "x",
+                    })
+                end
+            else
+                Rayfield:Notify({
+                    Title = "Cannot Trade",
+                    Content = "Trading is not available right now",
+                    Duration = 3,
+                    Image = "x",
+                })
+            end
+        end
+        
+        return false
+    end)
+    
+    if not success then
+        warn("Send trade error: " .. tostring(error))
+        Rayfield:Notify({
+            Title = "Trade Error",
+            Content = "Failed to send trade",
+            Duration = 3,
+            Image = "x",
+        })
+        return false
+    end
+    return success
+end
+
+-- Quick Trade Button (sends trade to nearest player)
+local Button = PlayerTab:CreateButton({
+    Name = "Quick Trade (Nearest Player)",
+    Callback = function()
+        local player = game.Players.LocalPlayer
+        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Character not found",
+                Duration = 3,
+                Image = "x",
+            })
+            return
+        end
+        
+        local nearestPlayer = nil
+        local nearestDistance = math.huge
+        local myPosition = player.Character.HumanoidRootPart.Position
+        
+        -- Find nearest player
+        for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+            if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local distance = (myPosition - otherPlayer.Character.HumanoidRootPart.Position).Magnitude
+                if distance < nearestDistance and distance <= 50 then -- Within 50 studs
+                    nearestDistance = distance
+                    nearestPlayer = otherPlayer
+                end
+            end
+        end
+        
+        if nearestPlayer then
+            sendTradeToPlayer(nearestPlayer)
+        else
+            Rayfield:Notify({
+                Title = "No Players Nearby",
+                Content = "No players found within range",
+                Duration = 3,
+                Image = "info",
+            })
+        end
+    end,
+})
    local fishTab = Window:CreateTab("Fishing", "fish")
       local isAutoFishActive = false
       local fishingDelay = 2.3 
