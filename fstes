@@ -394,22 +394,78 @@ local function findAndClickYesButton()
                                     string.find(text, "Would you like to give") or
                                     string.find(text, "trade")
                                 ) then
-                                    -- Found trade dialog, now look for Yes button
-                                    local parentFrame = textElement.Parent
-                                    while parentFrame and not parentFrame:IsA("ScreenGui") do
-                                        for _, button in pairs(parentFrame:GetDescendants()) do
-                                            if button:IsA("TextButton") and (
-                                                button.Text == "Yes" or 
-                                                button.Text == "Accept" or
-                                                button.Text == "OK"
-                                            ) then
-                                                -- Found Yes button, click it
-                                                print("[AUTO TRADE/GIVE] Auto clicking:", button.Text)
-                                                button.Activated:Fire()
-                                                return true
+                                    print("[DEBUG] Found trade dialog with text:", text)
+                                    
+                                    -- Found trade dialog, now look for Yes button in the entire ScreenGui
+                                    local screenGui = textElement
+                                    while screenGui and not screenGui:IsA("ScreenGui") do
+                                        screenGui = screenGui.Parent
+                                    end
+                                    
+                                    if screenGui then
+                                        -- Search for buttons in the entire ScreenGui
+                                        for _, button in pairs(screenGui:GetDescendants()) do
+                                            if button:IsA("TextButton") then
+                                                local buttonText = button.Text
+                                                print("[DEBUG] Found button:", buttonText)
+                                                
+                                                if buttonText == "Yes" or 
+                                                   buttonText == "Accept" or
+                                                   buttonText == "OK" or
+                                                   buttonText == "Confirm" then
+                                                    
+                                                    print("[AUTO TRADE/GIVE] Auto clicking button:", buttonText)
+                                                    
+                                                    -- Try multiple click methods
+                                                    spawn(function()
+                                                        button.Activated:Fire()
+                                                    end)
+                                                    
+                                                    spawn(function()
+                                                        wait(0.1)
+                                                        if button.MouseButton1Click then
+                                                            button.MouseButton1Click:Fire()
+                                                        end
+                                                    end)
+                                                    
+                                                    spawn(function()
+                                                        wait(0.2)
+                                                        -- Try to simulate user input
+                                                        local VirtualInputManager = game:GetService("VirtualInputManager")
+                                                        local buttonPos = button.AbsolutePosition
+                                                        local buttonSize = button.AbsoluteSize
+                                                        local clickX = buttonPos.X + buttonSize.X / 2
+                                                        local clickY = buttonPos.Y + buttonSize.Y / 2
+                                                        
+                                                        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
+                                                        wait(0.1)
+                                                        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
+                                                    end)
+                                                    
+                                                    return true
+                                                end
+                                            elseif button:IsA("ImageButton") then
+                                                -- Some games use ImageButtons
+                                                print("[DEBUG] Found ImageButton")
+                                                -- Check if it's positioned like a Yes button (usually on the left)
+                                                local parent = button.Parent
+                                                if parent then
+                                                    local siblings = {}
+                                                    for _, sibling in pairs(parent:GetChildren()) do
+                                                        if sibling:IsA("ImageButton") and sibling ~= button then
+                                                            table.insert(siblings, sibling)
+                                                        end
+                                                    end
+                                                    
+                                                    -- If there are 2 ImageButtons, click the first one (usually Yes)
+                                                    if #siblings == 1 then
+                                                        print("[AUTO TRADE/GIVE] Auto clicking ImageButton (assumed Yes)")
+                                                        button.Activated:Fire()
+                                                        return true
+                                                    end
+                                                end
                                             end
                                         end
-                                        parentFrame = parentFrame.Parent
                                     end
                                 end
                             end
@@ -427,21 +483,64 @@ local function findAndClickYesButton()
     return false
 end
 
--- Function to setup auto trade (for receiving)
+-- Function to setup auto trade (for receiving) - Direct Accept without Dialog
 local function setupAutoTrade()
-    if autoTradeConnection then
-        autoTradeConnection:Disconnect()
-    end
-    
-    -- Monitor PlayerGui for new dialogs
-    autoTradeConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        if isAutoTradeActive then
-            findAndClickYesButton()
+    local success, error = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        
+        -- Method 1: Hook ItemTradingController for incoming trades
+        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
+        if Controllers then
+            local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
+            if ItemTradingController then
+                local controller = require(ItemTradingController)
+                
+                -- Store original CreateTradePrompt function
+                if not controller.originalCreateTradePrompt then
+                    controller.originalCreateTradePrompt = controller.CreateTradePrompt
+                end
+                
+                -- Override CreateTradePrompt to handle both incoming and outgoing trades
+                controller.CreateTradePrompt = function(self, itemData, itemInfo, tradeInfo)
+                    -- Check if it's an incoming trade (has sender) and auto accept is enabled
+                    if isAutoTradeActive and tradeInfo and tradeInfo.sender then
+                        local Promise = require(ReplicatedStorage.Packages.Promise)
+                        print("[AUTO ACCEPT] Auto accepting incoming trade from:", tradeInfo.sender.DisplayName)
+                        print("[AUTO ACCEPT] Item:", itemInfo.Data.Name)
+                        return Promise.resolve(true)
+                    end
+                    
+                    -- Check if it's an outgoing trade (has target) and auto give is enabled
+                    if isAutoGiveActive and tradeInfo and tradeInfo.target then
+                        local Promise = require(ReplicatedStorage.Packages.Promise)
+                        print("[AUTO GIVE] Auto accepting outgoing trade to:", tradeInfo.target.DisplayName)
+                        print("[AUTO GIVE] Item:", itemInfo.Data.Name)
+                        return Promise.resolve(true)
+                    end
+                    
+                    -- Use original function for normal operation
+                    if controller.originalCreateTradePrompt then
+                        return controller.originalCreateTradePrompt(self, itemData, itemInfo, tradeInfo)
+                    else
+                        local Promise = require(ReplicatedStorage.Packages.Promise)
+                        return Promise.reject("Original function not found")
+                    end
+                end
+                
+                print("[AUTO ACCEPT] Successfully hooked ItemTradingController for direct accept")
+                return true
+            end
         end
+        
+        warn("[AUTO ACCEPT] ItemTradingController not found!")
+        return false
     end)
     
-    print("[AUTO TRADE] Monitoring for trade dialogs...")
-    return true
+    if not success then
+        warn("Auto accept setup error: " .. tostring(error))
+        return false
+    end
+    return success
 end
 
 -- Function to setup auto give (for giving items)
@@ -507,12 +606,35 @@ end
 
 -- Function to disable auto trade
 local function disableAutoTrade()
-    if autoTradeConnection then
-        autoTradeConnection:Disconnect()
-        autoTradeConnection = nil
-        print("[AUTO TRADE] Stopped monitoring")
+    local success, error = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
+        
+        if Controllers then
+            local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
+            if ItemTradingController then
+                local controller = require(ItemTradingController)
+                if controller.originalCreateTradePrompt then
+                    controller.CreateTradePrompt = controller.originalCreateTradePrompt
+                    print("[AUTO ACCEPT] Restored ItemTradingController")
+                end
+            end
+        end
+        
+        if autoTradeConnection then
+            autoTradeConnection:Disconnect()
+            autoTradeConnection = nil
+            print("[AUTO ACCEPT] Stopped monitoring")
+        end
+        
+        return true
+    end)
+    
+    if not success then
+        warn("Disable auto accept error: " .. tostring(error))
+        return false
     end
-    return true
+    return success
 end
 
 -- Function to disable auto give
@@ -548,9 +670,9 @@ local function disableAutoGive()
     return success
 end
 
--- Auto Accept Trade Toggle (for receiving trades)
+-- Auto Accept Trade Toggle (for receiving trades) - Direct Accept
 local autoTrade = PlayerTab:CreateToggle({
-    Name = "Auto Accept Trade (Receive)",
+    Name = "Auto Accept Trade (No Prompt)",
     CurrentValue = false,
     Flag = "autotrade",
     Callback = function(Value)
@@ -560,7 +682,7 @@ local autoTrade = PlayerTab:CreateToggle({
                     isAutoTradeActive = true
                     Rayfield:Notify({
                         Title = "Auto Accept Enabled",
-                        Content = "Will auto-click Yes on incoming trade prompts",
+                        Content = "Incoming trades will be accepted directly without any prompt",
                         Duration = 5,
                         Image = "check",
                     })
@@ -665,6 +787,12 @@ local DebugTradeButton = PlayerTab:CreateButton({
                                     print("Found potential trade prompt:", desc.Text)
                                 end
                             end
+                            if desc:IsA("TextButton") then
+                                print("Found button:", desc.Text)
+                            end
+                            if desc:IsA("ImageButton") then
+                                print("Found ImageButton in:", desc.Parent.Name)
+                            end
                         end
                     end
                 end
@@ -687,6 +815,29 @@ local DebugTradeButton = PlayerTab:CreateButton({
                 Content = tostring(error),
                 Duration = 3,
                 Image = "x",
+            })
+        end
+    end,
+})
+
+-- Manual test button to try clicking Yes button
+local ManualClickButton = PlayerTab:CreateButton({
+    Name = "Manual Test: Click Yes Button",
+    Callback = function()
+        print("[MANUAL TEST] Attempting to find and click Yes button...")
+        if findAndClickYesButton() then
+            Rayfield:Notify({
+                Title = "Button Clicked",
+                Content = "Successfully found and clicked a button",
+                Duration = 3,
+                Image = "check",
+            })
+        else
+            Rayfield:Notify({
+                Title = "No Button Found",
+                Content = "No trade prompt or Yes button found",
+                Duration = 3,
+                Image = "info",
             })
         end
     end,
