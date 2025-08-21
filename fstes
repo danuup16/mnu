@@ -365,163 +365,35 @@ local noclipp = PlayerTab:CreateToggle({
             end
          end,
       })
--- Auto Trade Feature - Tambahkan di PlayerTab setelah Anti AFK toggle
-
 local isAutoTradeActive = false
 local isAutoGiveActive = false
 local autoTradeConnection = nil
-local autoGiveConnection = nil
 local hookApplied = false
 local originalCreateTradePrompt = nil
 
--- Function to find and click Yes button on trade prompts
-local function findAndClickYesButton()
-    local success, error = pcall(function()
-        local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
-        if not PlayerGui then return end
-        
-        -- Look for prompt GUIs that might contain trade dialogs
-        for _, gui in pairs(PlayerGui:GetChildren()) do
-            if gui:IsA("ScreenGui") then
-                -- Look for frames that might be prompts
-                for _, frame in pairs(gui:GetDescendants()) do
-                    if frame:IsA("Frame") or frame:IsA("TextLabel") then
-                        -- Check if this frame contains trade-related text
-                        for _, textElement in pairs(frame:GetDescendants()) do
-                            if textElement:IsA("TextLabel") or textElement:IsA("TextButton") then
-                                local text = textElement.Text
-                                if text and (
-                                    string.find(text, "Accept") or
-                                    string.find(text, "from:") or
-                                    string.find(text, "Would you like to give") or
-                                    string.find(text, "trade")
-                                ) then
-                                    print("[DEBUG] Found trade dialog with text:", text)
-                                    
-                                    -- Found trade dialog, now look for Yes button in the entire ScreenGui
-                                    local screenGui = textElement
-                                    while screenGui and not screenGui:IsA("ScreenGui") do
-                                        screenGui = screenGui.Parent
-                                    end
-                                    
-                                    if screenGui then
-                                        -- Search for buttons in the entire ScreenGui
-                                        for _, button in pairs(screenGui:GetDescendants()) do
-                                            if button:IsA("TextButton") then
-                                                local buttonText = button.Text
-                                                print("[DEBUG] Found button:", buttonText)
-                                                
-                                                if buttonText == "Yes" or 
-                                                   buttonText == "Accept" or
-                                                   buttonText == "OK" or
-                                                   buttonText == "Confirm" then
-                                                    
-                                                    print("[AUTO TRADE/GIVE] Auto clicking button:", buttonText)
-                                                    
-                                                    -- Try multiple click methods
-                                                    spawn(function()
-                                                        button.Activated:Fire()
-                                                    end)
-                                                    
-                                                    spawn(function()
-                                                        wait(0.1)
-                                                        if button.MouseButton1Click then
-                                                            button.MouseButton1Click:Fire()
-                                                        end
-                                                    end)
-                                                    
-                                                    spawn(function()
-                                                        wait(0.2)
-                                                        -- Try to simulate user input
-                                                        local VirtualInputManager = game:GetService("VirtualInputManager")
-                                                        local buttonPos = button.AbsolutePosition
-                                                        local buttonSize = button.AbsoluteSize
-                                                        local clickX = buttonPos.X + buttonSize.X / 2
-                                                        local clickY = buttonPos.Y + buttonSize.Y / 2
-                                                        
-                                                        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
-                                                        wait(0.1)
-                                                        VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
-                                                    end)
-                                                    
-                                                    return true
-                                                end
-                                            elseif button:IsA("ImageButton") then
-                                                -- Some games use ImageButtons
-                                                print("[DEBUG] Found ImageButton")
-                                                -- Check if it's positioned like a Yes button (usually on the left)
-                                                local parent = button.Parent
-                                                if parent then
-                                                    local siblings = {}
-                                                    for _, sibling in pairs(parent:GetChildren()) do
-                                                        if sibling:IsA("ImageButton") and sibling ~= button then
-                                                            table.insert(siblings, sibling)
-                                                        end
-                                                    end
-                                                    
-                                                    -- If there are 2 ImageButtons, click the first one (usually Yes)
-                                                    if #siblings == 1 then
-                                                        print("[AUTO TRADE/GIVE] Auto clicking ImageButton (assumed Yes)")
-                                                        button.Activated:Fire()
-                                                        return true
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        return false
-    end)
-    
-    if not success then
-        warn("Auto click error:", error)
-    end
-    return false
-end
-
--- Function to setup auto trade (for receiving) - Direct Accept without Dialog
 local function setupAutoTrade()
     local success, error = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        
-        -- Method 1: Hook ItemTradingController for incoming trades
         local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
         if Controllers then
             local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
             if ItemTradingController then
                 local controller = require(ItemTradingController)
-                
-                -- Store original CreateTradePrompt function only once
                 if not originalCreateTradePrompt and controller.CreateTradePrompt then
                     originalCreateTradePrompt = controller.CreateTradePrompt
-                    print("[AUTO ACCEPT] Original function stored")
                 end
                 
-                -- Always reapply the hook to ensure it's active
                 controller.CreateTradePrompt = function(self, itemData, itemInfo, tradeInfo)
-                    -- Check if it's an incoming trade (has sender) and auto accept is enabled
                     if isAutoTradeActive and tradeInfo and tradeInfo.sender then
                         local Promise = require(ReplicatedStorage.Packages.Promise)
-                        print("[AUTO ACCEPT] Auto accepting incoming trade from:", tradeInfo.sender.DisplayName)
-                        print("[AUTO ACCEPT] Item:", itemInfo.Data.Name)
                         return Promise.resolve(true)
                     end
                     
-                    -- Check if it's an outgoing trade (has target) and auto give is enabled
                     if isAutoGiveActive and tradeInfo and tradeInfo.target then
                         local Promise = require(ReplicatedStorage.Packages.Promise)
-                        print("[AUTO GIVE] Auto accepting outgoing trade to:", tradeInfo.target.DisplayName)
-                        print("[AUTO GIVE] Item:", itemInfo.Data.Name)
                         return Promise.resolve(true)
                     end
                     
-                    -- Use original function for normal operation
                     if originalCreateTradePrompt then
                         return originalCreateTradePrompt(self, itemData, itemInfo, tradeInfo)
                     else
@@ -529,22 +401,14 @@ local function setupAutoTrade()
                         return Promise.reject("Original function not found")
                     end
                 end
-                
                 hookApplied = true
-                print("[AUTO ACCEPT] Hook applied successfully")
-                
-                -- Add a periodic check to ensure hook stays active
                 if autoTradeConnection then
                     autoTradeConnection:Disconnect()
                 end
-                
                 autoTradeConnection = game:GetService("RunService").Heartbeat:Connect(function()
-                    -- Check every 5 seconds if hook is still active
                     if tick() % 5 < 0.1 then
                         local currentController = require(ItemTradingController)
                         if currentController.CreateTradePrompt ~= controller.CreateTradePrompt then
-                            print("[AUTO ACCEPT] Hook lost, reapplying...")
-                            -- Reapply hook
                             currentController.CreateTradePrompt = controller.CreateTradePrompt
                         end
                     end
@@ -564,69 +428,6 @@ local function setupAutoTrade()
     end
     return success
 end
-
--- Function to setup auto give (for giving items)
-local function setupAutoGive()
-    local success, error = pcall(function()
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
-        
-        if Controllers then
-            local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
-            if ItemTradingController then
-                local controller = require(ItemTradingController)
-                
-                -- Store original CreateTradePrompt function
-                if not controller.originalCreateTradePrompt then
-                    controller.originalCreateTradePrompt = controller.CreateTradePrompt
-                end
-                
-                -- Override CreateTradePrompt to auto-return true for giving
-                controller.CreateTradePrompt = function(self, itemData, itemInfo, tradeInfo)
-                    if isAutoGiveActive and tradeInfo and tradeInfo.target then
-                        -- Auto-accept outgoing trades (giving)
-                        local Promise = require(ReplicatedStorage.Packages.Promise)
-                        print("[AUTO GIVE] Auto accepting give prompt to:", tradeInfo.target.DisplayName)
-                        return Promise.resolve(true)
-                    else
-                        -- Use original function
-                        if controller.originalCreateTradePrompt then
-                            return controller.originalCreateTradePrompt(self, itemData, itemInfo, tradeInfo)
-                        else
-                            local Promise = require(ReplicatedStorage.Packages.Promise)
-                            return Promise.reject("Original function not found")
-                        end
-                    end
-                end
-                
-                print("[AUTO GIVE] Successfully hooked ItemTradingController")
-                return true
-            end
-        end
-        
-        -- Fallback: Also monitor GUI for give prompts
-        if autoGiveConnection then
-            autoGiveConnection:Disconnect()
-        end
-        
-        autoGiveConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            if isAutoGiveActive then
-                findAndClickYesButton()
-            end
-        end)
-        
-        print("[AUTO GIVE] Monitoring for give dialogs...")
-        return true
-    end)
-    
-    if not success then
-        warn("Auto give setup error: " .. tostring(error))
-        return false
-    end
-    return success
-end
-
--- Function to disable auto trade
 local function disableAutoTrade()
     local success, error = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -638,9 +439,6 @@ local function disableAutoTrade()
                 local controller = require(ItemTradingController)
                 if originalCreateTradePrompt then
                     controller.CreateTradePrompt = originalCreateTradePrompt
-                    print("[AUTO ACCEPT] Restored original function")
-                else
-                    print("[AUTO ACCEPT] Warning: No original function to restore")
                 end
             end
         end
@@ -648,7 +446,6 @@ local function disableAutoTrade()
         if autoTradeConnection then
             autoTradeConnection:Disconnect()
             autoTradeConnection = nil
-            print("[AUTO ACCEPT] Stopped monitoring")
         end
         
         hookApplied = false
@@ -662,42 +459,9 @@ local function disableAutoTrade()
     return success
 end
 
--- Function to disable auto give
-local function disableAutoGive()
-    local success, error = pcall(function()
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
-        
-        if Controllers then
-            local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
-            if ItemTradingController then
-                local controller = require(ItemTradingController)
-                if controller.originalCreateTradePrompt then
-                    controller.CreateTradePrompt = controller.originalCreateTradePrompt
-                    print("[AUTO GIVE] Restored ItemTradingController")
-                end
-            end
-        end
-        
-        if autoGiveConnection then
-            autoGiveConnection:Disconnect()
-            autoGiveConnection = nil
-            print("[AUTO GIVE] Stopped monitoring")
-        end
-        
-        return true
-    end)
-    
-    if not success then
-        warn("Disable auto give error: " .. tostring(error))
-        return false
-    end
-    return success
-end
-
 -- Unified Auto Trade Toggle (handles both receiving and giving)
 local autoTrade = PlayerTab:CreateToggle({
-    Name = "Auto Trade (Give & Accept)",
+    Name = "Auto Trade",
     CurrentValue = false,
     Flag = "autotrade",
     Callback = function(Value)
@@ -706,20 +470,10 @@ local autoTrade = PlayerTab:CreateToggle({
                 if setupAutoTrade() then
                     isAutoTradeActive = true
                     isAutoGiveActive = true
-                    Rayfield:Notify({
-                        Title = "Auto Trade Enabled",
-                        Content = "Both giving (L) and accepting trades will work without prompts",
-                        Duration = 5,
-                        Image = "check",
-                    })
+                    
                 else
                     autoTrade:Set(false)
-                    Rayfield:Notify({
-                        Title = "Auto Trade Failed",
-                        Content = "Could not enable auto trade",
-                        Duration = 5,
-                        Image = "x",
-                    })
+                    
                 end
             end
         else
@@ -727,101 +481,11 @@ local autoTrade = PlayerTab:CreateToggle({
                 isAutoTradeActive = false
                 isAutoGiveActive = false
                 disableAutoTrade()
-                Rayfield:Notify({
-                    Title = "Auto Trade Disabled",
-                    Content = "Trade prompts will show normally",
-                    Duration = 5,
-                    Image = "info",
-                })
             end
         end
     end,
 })
 
--- Debug button for trade system
-local DebugTradeButton = PlayerTab:CreateButton({
-    Name = "Debug: Test Trade System",
-    Callback = function()
-        local success, error = pcall(function()
-            local ReplicatedStorage = game:GetService("ReplicatedStorage")
-            
-            print("=== TRADE DEBUG INFO ===")
-            print("Auto accept active:", isAutoTradeActive)
-            print("Auto give active:", isAutoGiveActive)
-            print("Hook applied:", hookApplied)
-            print("Original function stored:", originalCreateTradePrompt ~= nil)
-            
-            -- Check Controllers
-            local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
-            print("Controllers folder found:", Controllers ~= nil)
-            
-            if Controllers then
-                local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
-                print("ItemTradingController found:", ItemTradingController ~= nil)
-                
-                if ItemTradingController then
-                    local controller = require(ItemTradingController)
-                    print("CreateTradePrompt exists:", controller.CreateTradePrompt ~= nil)
-                end
-            end
-            
-            print("========================")
-            
-            Rayfield:Notify({
-                Title = "Debug Complete",
-                Content = "Check console for debug info",
-                Duration = 3,
-                Image = "info",
-            })
-        end)
-        
-        if not success then
-            print("Debug error:", error)
-            Rayfield:Notify({
-                Title = "Debug Error",
-                Content = tostring(error),
-                Duration = 3,
-                Image = "x",
-            })
-        end
-    end,
-})
-
--- Force refresh hook button
-local RefreshHookButton = PlayerTab:CreateButton({
-    Name = "Refresh Auto Accept Hook",
-    Callback = function()
-        if isAutoTradeActive then
-            print("[REFRESH] Refreshing auto accept hook...")
-            disableAutoTrade()
-            wait(0.5)
-            if setupAutoTrade() then
-                isAutoTradeActive = true
-                Rayfield:Notify({
-                    Title = "Hook Refreshed",
-                    Content = "Auto accept hook has been refreshed",
-                    Duration = 3,
-                    Image = "check",
-                })
-            else
-                autoTrade:Set(false)
-                Rayfield:Notify({
-                    Title = "Refresh Failed",
-                    Content = "Failed to refresh hook",
-                    Duration = 3,
-                    Image = "x",
-                })
-            end
-        else
-            Rayfield:Notify({
-                Title = "Auto Accept Disabled",
-                Content = "Please enable auto accept first",
-                Duration = 3,
-                Image = "info",
-            })
-        end
-    end,
-})
    local fishTab = Window:CreateTab("Fishing", "fish")
       local isAutoFishActive = false
       local fishingDelay = 2.3 
@@ -1155,34 +819,6 @@ local FarmToggle = autofarmTab:CreateToggle({
       end
    end,
 })
-local autoSellActive = false
-local AutoSellToggle = autofarmTab:CreateToggle({
-   Name = "Auto Sell Inventory Full",
-   CurrentValue = false,
-   Flag = "autosell",
-   Callback = function(Value)
-      autoSellActive = Value
-      if Value then
-         spawn(function()
-            while autoSellActive do
-               wait(30)
-               if isAutoFarmActive then
-                  local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                  local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
-                  if netFolder and netFolder:FindFirstChild("net") then
-                     local net = netFolder.net
-                     local sellAllItems = net:FindFirstChild("RF/SellAllItems")
-                     if sellAllItems then
-                        sellAllItems:InvokeServer()
-                     end
-                  end
-               end
-            end
-         end)
-      else
-      end
-   end,
-})
     local TeleportTab = Window:CreateTab("Teleport", "ghost")
     local currentPlayerList = {}
     local teleportDropdown = nil
@@ -1414,15 +1050,15 @@ local function detectActiveEvents()
         end
         local workspaceProps = workspace:FindFirstChild("Props")
         if workspaceProps and workspaceProps:FindFirstChild("Shark Hunt") then
-            table.insert(activeEvents, "Shark Hunt 🟢")
+            table.insert(activeEvents, "Shark Hunt ")
         end
         if workspaceProps and workspaceProps:FindFirstChild("Ghost Shark Hunt") then
-            table.insert(activeEvents, "Ghost Shark Hunt 🟢")
+            table.insert(activeEvents, "Ghost Shark Hunt ")
         end
         local lighting = game:GetService("Lighting")
         if lighting:FindFirstChild("SparklingCoveEffect") or 
            (lighting.Brightness > 1.5 and lighting.ColorShift_Top.R > 0.8 and lighting.ColorShift_Top.G > 0.8) then
-            table.insert(activeEvents, "Sparkling Cove 🟢")
+            table.insert(activeEvents, "Sparkling Cove ")
         end
         local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
         local wormHuntActive = false
@@ -1439,37 +1075,37 @@ local function detectActiveEvents()
         end
         
         if wormHuntActive or (workspaceProps and workspaceProps:FindFirstChild("Worm Hunt")) then
-            table.insert(activeEvents, "Worm Hunt 🟢")
+            table.insert(activeEvents, "Worm Hunt ")
         end
         local adminAreas = workspace:FindFirstChild("AdminAreas") or workspace:FindFirstChild("AdminEvents")
         if adminAreas then
             if adminAreas:FindFirstChild("Shocked") or adminAreas:FindFirstChild("ShockedArea") then
-                table.insert(activeEvents, "Admin - Shocked 🟢")
+                table.insert(activeEvents, "Admin - Shocked ")
             end
             if adminAreas:FindFirstChild("BlackHole") or adminAreas:FindFirstChild("Black Hole") then
-                table.insert(activeEvents, "Admin - Black Hole 🟢")
+                table.insert(activeEvents, "Admin - Black Hole ")
             end
             if adminAreas:FindFirstChild("GhostWorm") or adminAreas:FindFirstChild("Ghost Worm") then
-                table.insert(activeEvents, "Admin - Ghost Worm 🟢")
+                table.insert(activeEvents, "Admin - Ghost Worm ")
             end
             if adminAreas:FindFirstChild("MeteorRain") or adminAreas:FindFirstChild("Meteor Rain") then
-                table.insert(activeEvents, "Admin - Meteor Rain 🟢")
+                table.insert(activeEvents, "Admin - Meteor Rain ")
             end
         end
         if lighting.Brightness >= 3.5 and lighting.Ambient.B >= 0.6 and lighting.Ambient.R < 0.4 then
-            table.insert(activeEvents, "Storm 🟢")
+            table.insert(activeEvents, "Storm ")
         end
         if lighting.ColorShift_Top.R <= 0.03 and lighting.ColorShift_Top.G <= 0.03 and lighting.ColorShift_Top.B <= 0.03 and
            lighting.Brightness < 1 then
-            table.insert(activeEvents, "Snow 🟢")
+            table.insert(activeEvents, "Snow ")
         end
         local atmosphere = lighting:FindFirstChild("Atmosphere")
         if atmosphere and atmosphere.Density >= 1.0 and lighting.Brightness > 1.2 then
-            table.insert(activeEvents, "Wind 🟢")
+            table.insert(activeEvents, "Wind ")
         end
         if lighting.Brightness <= 0.4 and 
            lighting.ColorShift_Top.R >= 0.8 and lighting.ColorShift_Top.G >= 0.8 and lighting.ColorShift_Top.B >= 0.8 then
-            table.insert(activeEvents, "Cloudy 🟢")
+            table.insert(activeEvents, "Cloudy ")
         end
         
     end)
@@ -1488,7 +1124,7 @@ local function detectActiveEvents()
 end
 
 local function getEventCoordinates(selection)
-    local cleanName = string.gsub(selection, " 🟢", "")
+    local cleanName = string.gsub(selection, " ", "")
     cleanName = string.gsub(cleanName, "^%s*(.-)%s*$", "%1") 
     if eventCoordinates[cleanName] then
         local coords = eventCoordinates[cleanName]
@@ -1516,19 +1152,19 @@ local function getEventCoordinates(selection)
 end
 detectActiveEvents() -- Initial detection
 EventDropdown = TeleportTab:CreateDropdown({
-    Name = "Active Events & Locations",
+    Name = "Active Events",
     Options = #detectedEvents > 0 and (function()
-        local options = {"Select Event/Location..."}
+        local options = {"Select Event..."}
         for _, event in ipairs(detectedEvents) do
             table.insert(options, event)
         end
         return options
-    end)() or {"Select Event/Location...", "No events detected"},
-    CurrentOption = {"Select Event/Location..."},
+    end)() or {"Select Event...", "No events"},
+    CurrentOption = {"Select Event..."},
     MultipleOptions = false,
     Flag = "eventselect",
     Callback = function(Options)
-        if Options and Options[1] and Options[1] ~= "Select Event/Location..." then
+        if Options and Options[1] and Options[1] ~= "Select Event..." then
             selectedEvent = Options[1]
         else
             selectedEvent = nil
@@ -1540,26 +1176,26 @@ local RefreshEventsButton = TeleportTab:CreateButton({
     Callback = function()
         detectActiveEvents()
         if EventDropdown then
-            local options = {"Select Event/Location..."}
+            local options = {"Select Event..."}
             for _, event in ipairs(detectedEvents) do
                 table.insert(options, event)
             end
             EventDropdown:Refresh(options)
-            EventDropdown:Set({"Select Event/Location..."})
+            EventDropdown:Set({"Select Event..."})
             selectedEvent = nil
         end
         local activeCount = 0
         for _, event in ipairs(detectedEvents) do
-            if string.find(event, "🟢") then
+            if string.find(event, "") then
                 activeCount = activeCount + 1
             end
         end
     end,
 })
 local TeleportEventButton = TeleportTab:CreateButton({
-    Name = "📍 Teleport to Selected Event",
+    Name = "Teleport Event",
     Callback = function()
-        if not selectedEvent or selectedEvent == "Select Event/Location..." or selectedEvent == "Nothing" or selectedEvent == "Error events" then
+        if not selectedEvent or selectedEvent == "Select Event..." or selectedEvent == "Nothing" or selectedEvent == "Error events" then
             return
         end
         local player = game.Players.LocalPlayer
