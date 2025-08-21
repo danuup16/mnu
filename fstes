@@ -369,140 +369,132 @@ local noclipp = PlayerTab:CreateToggle({
 
 local isAutoTradeActive = false
 local isAutoGiveActive = false
+local autoTradeConnection = nil
+local autoGiveConnection = nil
 
--- Function to hook the trade response (for receiving trades)
-local function setupAutoTrade()
+-- Function to find and click Yes button on trade prompts
+local function findAndClickYesButton()
     local success, error = pcall(function()
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+        if not PlayerGui then return end
         
-        -- Method 1: Hook PromptController to auto-accept trade prompts
-        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
-        if Controllers then
-            local PromptController = Controllers:FindFirstChild("PromptController")
-            if PromptController then
-                local controller = require(PromptController)
-                
-                -- Store original FirePrompt function
-                if not controller.originalFirePrompt then
-                    controller.originalFirePrompt = controller.FirePrompt
-                end
-                
-                -- Override FirePrompt to auto-accept trade prompts
-                controller.FirePrompt = function(self, promptText, showButtons)
-                    if isAutoTradeActive and promptText and (
-                        string.find(promptText, "Accept") or 
-                        string.find(promptText, "from:") or
-                        string.find(promptText, "trade")
-                    ) then
-                        -- Auto-accept trade prompts
-                        local Promise = require(ReplicatedStorage.Packages.Promise)
-                        print("[AUTO TRADE] Auto accepting trade prompt via PromptController")
-                        return Promise.resolve(true)
-                    else
-                        -- Use original function for other prompts
-                        return controller.originalFirePrompt(self, promptText, showButtons)
+        -- Look for prompt GUIs that might contain trade dialogs
+        for _, gui in pairs(PlayerGui:GetChildren()) do
+            if gui:IsA("ScreenGui") then
+                -- Look for frames that might be prompts
+                for _, frame in pairs(gui:GetDescendants()) do
+                    if frame:IsA("Frame") or frame:IsA("TextLabel") then
+                        -- Check if this frame contains trade-related text
+                        for _, textElement in pairs(frame:GetDescendants()) do
+                            if textElement:IsA("TextLabel") or textElement:IsA("TextButton") then
+                                local text = textElement.Text
+                                if text and (
+                                    string.find(text, "Accept") or
+                                    string.find(text, "from:") or
+                                    string.find(text, "Would you like to give") or
+                                    string.find(text, "trade")
+                                ) then
+                                    -- Found trade dialog, now look for Yes button
+                                    local parentFrame = textElement.Parent
+                                    while parentFrame and not parentFrame:IsA("ScreenGui") do
+                                        for _, button in pairs(parentFrame:GetDescendants()) do
+                                            if button:IsA("TextButton") and (
+                                                button.Text == "Yes" or 
+                                                button.Text == "Accept" or
+                                                button.Text == "OK"
+                                            ) then
+                                                -- Found Yes button, click it
+                                                print("[AUTO TRADE/GIVE] Auto clicking:", button.Text)
+                                                button.Activated:Fire()
+                                                return true
+                                            end
+                                        end
+                                        parentFrame = parentFrame.Parent
+                                    end
+                                end
+                            end
+                        end
                     end
                 end
-                
-                print("[AUTO TRADE] Successfully hooked PromptController")
-                return true
             end
         end
+        return false
+    end)
+    
+    if not success then
+        warn("Auto click error:", error)
+    end
+    return false
+end
+
+-- Function to setup auto trade (for receiving)
+local function setupAutoTrade()
+    if autoTradeConnection then
+        autoTradeConnection:Disconnect()
+    end
+    
+    -- Monitor PlayerGui for new dialogs
+    autoTradeConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        if isAutoTradeActive then
+            findAndClickYesButton()
+        end
+    end)
+    
+    print("[AUTO TRADE] Monitoring for trade dialogs...")
+    return true
+end
+
+-- Function to setup auto give (for giving items)
+local function setupAutoGive()
+    local success, error = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
         
-        -- Method 2: Hook ItemTradingController for both sending and receiving
         if Controllers then
             local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
             if ItemTradingController then
                 local controller = require(ItemTradingController)
                 
-                -- Hook the CreateTradePrompt function
+                -- Store original CreateTradePrompt function
                 if not controller.originalCreateTradePrompt then
                     controller.originalCreateTradePrompt = controller.CreateTradePrompt
                 end
                 
+                -- Override CreateTradePrompt to auto-return true for giving
                 controller.CreateTradePrompt = function(self, itemData, itemInfo, tradeInfo)
-                    -- Check if it's an incoming trade (has sender)
-                    if isAutoTradeActive and tradeInfo and tradeInfo.sender then
-                        local Promise = require(ReplicatedStorage.Packages.Promise)
-                        print("[AUTO TRADE] Auto accepting incoming trade from:", tradeInfo.sender.DisplayName)
-                        return Promise.resolve(true)
-                    end
-                    
-                    -- Check if it's an outgoing trade (has target) and auto give is enabled
                     if isAutoGiveActive and tradeInfo and tradeInfo.target then
+                        -- Auto-accept outgoing trades (giving)
                         local Promise = require(ReplicatedStorage.Packages.Promise)
-                        print("[AUTO GIVE] Auto accepting outgoing trade to:", tradeInfo.target.DisplayName)
+                        print("[AUTO GIVE] Auto accepting give prompt to:", tradeInfo.target.DisplayName)
                         return Promise.resolve(true)
-                    end
-                    
-                    -- Use original function for normal operation
-                    if controller.originalCreateTradePrompt then
-                        return controller.originalCreateTradePrompt(self, itemData, itemInfo, tradeInfo)
                     else
-                        local Promise = require(ReplicatedStorage.Packages.Promise)
-                        return Promise.reject("Original function not found")
+                        -- Use original function
+                        if controller.originalCreateTradePrompt then
+                            return controller.originalCreateTradePrompt(self, itemData, itemInfo, tradeInfo)
+                        else
+                            local Promise = require(ReplicatedStorage.Packages.Promise)
+                            return Promise.reject("Original function not found")
+                        end
                     end
                 end
                 
-                print("[AUTO TRADE] Successfully hooked ItemTradingController")
+                print("[AUTO GIVE] Successfully hooked ItemTradingController")
                 return true
             end
         end
         
-        warn("[AUTO TRADE] All methods failed!")
-        return false
-    end)
-    
-    if not success then
-        warn("Auto trade setup error: " .. tostring(error))
-        return false
-    end
-    return success
-end
-
--- Function to hook the give prompt (for giving items)
-local function setupAutoGive()
-    local success, error = pcall(function()
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        
-        -- Try to find the ItemTradingController
-        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
-        if not Controllers then
-            warn("Controllers folder not found!")
-            return false
+        -- Fallback: Also monitor GUI for give prompts
+        if autoGiveConnection then
+            autoGiveConnection:Disconnect()
         end
         
-        local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
-        if not ItemTradingController then
-            warn("ItemTradingController not found!")
-            return false
-        end
-        
-        -- Get the module
-        local controller = require(ItemTradingController)
-        
-        -- Store original CreateTradePrompt function
-        if not originalCreateTradePrompt then
-            originalCreateTradePrompt = controller.CreateTradePrompt
-        end
-        
-        -- Override CreateTradePrompt to auto-return true for giving
-        controller.CreateTradePrompt = function(self, itemData, itemInfo, tradeInfo)
-            if isAutoGiveActive and tradeInfo.target then
-                -- If auto give is active and we're giving to someone, auto-accept
-                local Promise = require(ReplicatedStorage.Packages.Promise)
-                return Promise.resolve(true)
-            else
-                -- Use original function
-                if originalCreateTradePrompt then
-                    return originalCreateTradePrompt(self, itemData, itemInfo, tradeInfo)
-                else
-                    local Promise = require(ReplicatedStorage.Packages.Promise)
-                    return Promise.reject("Original function not found")
-                end
+        autoGiveConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            if isAutoGiveActive then
+                findAndClickYesButton()
             end
-        end
+        end)
         
+        print("[AUTO GIVE] Monitoring for give dialogs...")
         return true
     end)
     
@@ -513,45 +505,17 @@ local function setupAutoGive()
     return success
 end
 
--- Function to restore original trade behavior
+-- Function to disable auto trade
 local function disableAutoTrade()
-    local success, error = pcall(function()
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
-        
-        if Controllers then
-            -- Restore PromptController
-            local PromptController = Controllers:FindFirstChild("PromptController")
-            if PromptController then
-                local controller = require(PromptController)
-                if controller.originalFirePrompt then
-                    controller.FirePrompt = controller.originalFirePrompt
-                    print("[AUTO TRADE] Restored PromptController")
-                end
-            end
-            
-            -- Restore ItemTradingController
-            local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
-            if ItemTradingController then
-                local controller = require(ItemTradingController)
-                if controller.originalCreateTradePrompt then
-                    controller.CreateTradePrompt = controller.originalCreateTradePrompt
-                    print("[AUTO TRADE] Restored ItemTradingController")
-                end
-            end
-        end
-        
-        return true
-    end)
-    
-    if not success then
-        warn("Disable auto trade error: " .. tostring(error))
-        return false
+    if autoTradeConnection then
+        autoTradeConnection:Disconnect()
+        autoTradeConnection = nil
+        print("[AUTO TRADE] Stopped monitoring")
     end
-    return success
+    return true
 end
 
--- Function to restore original give behavior
+-- Function to disable auto give
 local function disableAutoGive()
     local success, error = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -561,15 +525,20 @@ local function disableAutoGive()
             local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
             if ItemTradingController then
                 local controller = require(ItemTradingController)
-                
-                if originalCreateTradePrompt then
-                    controller.CreateTradePrompt = originalCreateTradePrompt
-                    return true
+                if controller.originalCreateTradePrompt then
+                    controller.CreateTradePrompt = controller.originalCreateTradePrompt
+                    print("[AUTO GIVE] Restored ItemTradingController")
                 end
             end
         end
         
-        return false
+        if autoGiveConnection then
+            autoGiveConnection:Disconnect()
+            autoGiveConnection = nil
+            print("[AUTO GIVE] Stopped monitoring")
+        end
+        
+        return true
     end)
     
     if not success then
@@ -591,12 +560,11 @@ local autoTrade = PlayerTab:CreateToggle({
                     isAutoTradeActive = true
                     Rayfield:Notify({
                         Title = "Auto Accept Enabled",
-                        Content = "All incoming trade requests will be automatically accepted",
+                        Content = "Will auto-click Yes on incoming trade prompts",
                         Duration = 5,
                         Image = "check",
                     })
                 else
-                    -- If setup failed, turn off the toggle
                     autoTrade:Set(false)
                     Rayfield:Notify({
                         Title = "Auto Accept Failed",
@@ -638,7 +606,6 @@ local autoGive = PlayerTab:CreateToggle({
                         Image = "check",
                     })
                 else
-                    -- If setup failed, turn off the toggle
                     autoGive:Set(false)
                     Rayfield:Notify({
                         Title = "Auto Give Failed",
@@ -669,40 +636,41 @@ local DebugTradeButton = PlayerTab:CreateButton({
     Callback = function()
         local success, error = pcall(function()
             local ReplicatedStorage = game:GetService("ReplicatedStorage")
-            local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+            local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
             
             print("=== TRADE DEBUG INFO ===")
-            print("Network folder found:", netFolder ~= nil)
+            print("PlayerGui found:", PlayerGui ~= nil)
+            print("Auto trade active:", isAutoTradeActive)
+            print("Auto give active:", isAutoGiveActive)
             
-            if netFolder then
-                local net = netFolder:FindFirstChild("net")
-                print("Net folder found:", net ~= nil)
-                
-                if net then
-                    local awaitTradeResponse = net:FindFirstChild("RF/AwaitTradeResponse")
-                    print("AwaitTradeResponse found:", awaitTradeResponse ~= nil)
-                    
-                    if awaitTradeResponse then
-                        print("OnClientInvoke exists:", awaitTradeResponse.OnClientInvoke ~= nil)
-                        print("Original function stored:", originalOnClientInvoke ~= nil)
-                        print("Auto trade active:", isAutoTradeActive)
-                    end
-                end
-            end
-            
-            -- Test if Controllers exist for auto give
+            -- Check Controllers
             local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
             print("Controllers folder found:", Controllers ~= nil)
             
             if Controllers then
                 local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
-                local PromptController = Controllers:FindFirstChild("PromptController")
                 print("ItemTradingController found:", ItemTradingController ~= nil)
-                print("PromptController found:", PromptController ~= nil)
             end
             
-            print("Auto give active:", isAutoGiveActive)
-            print("=======================")
+            -- Check for active prompts
+            if PlayerGui then
+                print("Checking for active prompts...")
+                for _, gui in pairs(PlayerGui:GetChildren()) do
+                    if gui:IsA("ScreenGui") then
+                        for _, desc in pairs(gui:GetDescendants()) do
+                            if desc:IsA("TextLabel") and desc.Text then
+                                if string.find(desc.Text, "Accept") or 
+                                   string.find(desc.Text, "Would you like") or
+                                   string.find(desc.Text, "trade") then
+                                    print("Found potential trade prompt:", desc.Text)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            
+            print("========================")
             
             Rayfield:Notify({
                 Title = "Debug Complete",
