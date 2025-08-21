@@ -365,8 +365,6 @@ local noclipp = PlayerTab:CreateToggle({
             end
          end,
       })
--- Auto Trade Feature - Tambahkan di PlayerTab setelah Anti AFK toggle
-
 local isAutoTradeActive = false
 local isAutoGiveActive = false
 local originalOnClientInvoke = nil
@@ -376,39 +374,84 @@ local originalCreateTradePrompt = nil
 local function setupAutoTrade()
     local success, error = pcall(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        
+        -- Method 1: Try to hook AwaitTradeResponse directly
         local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
         
-        if not netFolder or not netFolder:FindFirstChild("net") then
-            warn("Network folder not found!")
-            return false
-        end
-        
-        local net = netFolder.net
-        local awaitTradeResponse = net:FindFirstChild("RF/AwaitTradeResponse")
-        
-        if awaitTradeResponse then
-            -- Store original function if not already stored
-            if not originalOnClientInvoke then
-                originalOnClientInvoke = awaitTradeResponse.OnClientInvoke
-            end
+        if netFolder and netFolder:FindFirstChild("net") then
+            local net = netFolder.net
+            local awaitTradeResponse = net:FindFirstChild("RF/AwaitTradeResponse")
             
-            -- Override the OnClientInvoke to auto-accept
-            awaitTradeResponse.OnClientInvoke = function(itemData, sender)
-                if isAutoTradeActive then
-                    -- Auto accept trade without showing prompt
-                    return true
-                else
-                    -- Use original function if auto trade is disabled
-                    if originalOnClientInvoke then
-                        return originalOnClientInvoke(itemData, sender)
-                    end
-                    return false
+            if awaitTradeResponse then
+                -- Store original function if not already stored
+                if not originalOnClientInvoke then
+                    originalOnClientInvoke = awaitTradeResponse.OnClientInvoke
                 end
+                
+                -- Override the OnClientInvoke to auto-accept
+                awaitTradeResponse.OnClientInvoke = function(itemData, sender)
+                    print("[AUTO TRADE] Trade request received from:", sender and sender.DisplayName or "Unknown")
+                    print("[AUTO TRADE] Auto trade active:", isAutoTradeActive)
+                    
+                    if isAutoTradeActive then
+                        print("[AUTO TRADE] Auto accepting trade...")
+                        -- Auto accept trade without showing prompt
+                        return true
+                    else
+                        print("[AUTO TRADE] Using original function...")
+                        -- Use original function if auto trade is disabled
+                        if originalOnClientInvoke then
+                            return originalOnClientInvoke(itemData, sender)
+                        end
+                        return false
+                    end
+                end
+                
+                print("[AUTO TRADE] Successfully hooked AwaitTradeResponse (Method 1)")
+                return true
             end
-            
-            return true
         end
         
+        -- Method 2: Try to hook ItemTradingController for receiving trades
+        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
+        if Controllers then
+            local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
+            if ItemTradingController then
+                local controller = require(ItemTradingController)
+                
+                -- Hook the CreateTradePrompt for receiving trades too
+                if not controller.originalCreateTradePromptReceive then
+                    controller.originalCreateTradePromptReceive = controller.CreateTradePrompt
+                end
+                
+                controller.CreateTradePrompt = function(self, itemData, itemInfo, tradeInfo)
+                    if isAutoTradeActive and tradeInfo.sender then
+                        -- Auto-accept incoming trades
+                        local Promise = require(ReplicatedStorage.Packages.Promise)
+                        print("[AUTO TRADE] Auto accepting incoming trade via Method 2")
+                        return Promise.resolve(true)
+                    elseif isAutoGiveActive and tradeInfo.target then
+                        -- Auto-accept outgoing trades (giving)
+                        local Promise = require(ReplicatedStorage.Packages.Promise)
+                        print("[AUTO GIVE] Auto accepting outgoing trade")
+                        return Promise.resolve(true)
+                    else
+                        -- Use original function
+                        if controller.originalCreateTradePromptReceive then
+                            return controller.originalCreateTradePromptReceive(self, itemData, itemInfo, tradeInfo)
+                        else
+                            local Promise = require(ReplicatedStorage.Packages.Promise)
+                            return Promise.reject("Original function not found")
+                        end
+                    end
+                end
+                
+                print("[AUTO TRADE] Successfully hooked ItemTradingController (Method 2)")
+                return true
+            end
+        end
+        
+        warn("[AUTO TRADE] Both methods failed!")
         return false
     end)
     
@@ -488,6 +531,7 @@ local function disableAutoTrade()
         if awaitTradeResponse and originalOnClientInvoke then
             -- Restore original function
             awaitTradeResponse.OnClientInvoke = originalOnClientInvoke
+            print("[AUTO TRADE] Restored original function")
             return true
         end
         
@@ -609,6 +653,67 @@ local autoGive = PlayerTab:CreateToggle({
                     Image = "info",
                 })
             end
+        end
+    end,
+})
+
+-- Debug button for trade system
+local DebugTradeButton = PlayerTab:CreateButton({
+    Name = "Debug: Test Trade System",
+    Callback = function()
+        local success, error = pcall(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+            
+            print("=== TRADE DEBUG INFO ===")
+            print("Network folder found:", netFolder ~= nil)
+            
+            if netFolder then
+                local net = netFolder:FindFirstChild("net")
+                print("Net folder found:", net ~= nil)
+                
+                if net then
+                    local awaitTradeResponse = net:FindFirstChild("RF/AwaitTradeResponse")
+                    print("AwaitTradeResponse found:", awaitTradeResponse ~= nil)
+                    
+                    if awaitTradeResponse then
+                        print("OnClientInvoke exists:", awaitTradeResponse.OnClientInvoke ~= nil)
+                        print("Original function stored:", originalOnClientInvoke ~= nil)
+                        print("Auto trade active:", isAutoTradeActive)
+                    end
+                end
+            end
+            
+            -- Test if Controllers exist for auto give
+            local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
+            print("Controllers folder found:", Controllers ~= nil)
+            
+            if Controllers then
+                local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
+                local PromptController = Controllers:FindFirstChild("PromptController")
+                print("ItemTradingController found:", ItemTradingController ~= nil)
+                print("PromptController found:", PromptController ~= nil)
+            end
+            
+            print("Auto give active:", isAutoGiveActive)
+            print("=======================")
+            
+            Rayfield:Notify({
+                Title = "Debug Complete",
+                Content = "Check console for debug info",
+                Duration = 3,
+                Image = "info",
+            })
+        end)
+        
+        if not success then
+            print("Debug error:", error)
+            Rayfield:Notify({
+                Title = "Debug Error",
+                Content = tostring(error),
+                Duration = 3,
+                Image = "x",
+            })
         end
     end,
 })
