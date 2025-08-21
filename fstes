@@ -500,84 +500,66 @@ local function sendTradeToPlayer(targetPlayer)
         end
         
         local net = netFolder.net
-        local canSendTrade = net:FindFirstChild("RF/CanSendTrade")
         local initiateTrade = net:FindFirstChild("RF/InitiateTrade")
         
-        if canSendTrade and initiateTrade then
-            -- Check if we can send trade
-            local canTrade = canSendTrade:InvokeServer()
-            if canTrade then
-                -- Get current equipped item
-                local Replion = require(ReplicatedStorage.Packages.Replion)
-                local Client = Replion.Client
-                local dataReplion = Client:WaitReplion("Data")
-                local equippedId = dataReplion:Get("EquippedId")
+        if initiateTrade then
+            -- Get current equipped item using Replion
+            local Replion = require(ReplicatedStorage.Packages.Replion)
+            local Client = Replion.Client
+            local dataReplion = Client:WaitReplion("Data")
+            local equippedId = dataReplion:Get("EquippedId")
+            
+            if equippedId and equippedId ~= "" then
+                -- Debug: Print the equipped ID
+                print("Equipped ID:", equippedId)
+                print("Target Player ID:", targetPlayer.UserId)
                 
-                if equippedId then
-                    -- Get the equipped item from inventory
-                    local inventory = dataReplion:Get("Inventory")
-                    local equippedItem = nil
-                    
-                    for category, items in pairs(inventory) do
-                        for uuid, item in pairs(items) do
-                            if uuid == equippedId then
-                                equippedItem = item
-                                break
-                            end
-                        end
-                        if equippedItem then break end
-                    end
-                    
-                    if equippedItem then
-                        -- Send trade
-                        local args = {
-                            [1] = targetPlayer.UserId,
-                            [2] = equippedId
-                        }
-                        initiateTrade:InvokeServer(unpack(args))
-                        
-                        Rayfield:Notify({
-                            Title = "Trade Sent",
-                            Content = "Trade sent to " .. targetPlayer.DisplayName,
-                            Duration = 3,
-                            Image = "check",
-                        })
-                        return true
-                    else
-                        Rayfield:Notify({
-                            Title = "No Item Equipped",
-                            Content = "Please equip an item to trade",
-                            Duration = 3,
-                            Image = "x",
-                        })
-                    end
+                -- Try to send trade directly
+                local tradeResult = initiateTrade:InvokeServer(targetPlayer.UserId, equippedId)
+                
+                if tradeResult then
+                    Rayfield:Notify({
+                        Title = "Trade Sent",
+                        Content = "Trade sent to " .. targetPlayer.DisplayName,
+                        Duration = 3,
+                        Image = "check",
+                    })
+                    return true
                 else
                     Rayfield:Notify({
-                        Title = "No Item Equipped",
-                        Content = "Please equip an item to trade",
+                        Title = "Trade Failed",
+                        Content = "Server rejected the trade request",
                         Duration = 3,
                         Image = "x",
                     })
+                    return false
                 end
             else
                 Rayfield:Notify({
-                    Title = "Cannot Trade",
-                    Content = "Trading is not available right now",
+                    Title = "No Item Equipped",
+                    Content = "Please equip an item to trade",
                     Duration = 3,
                     Image = "x",
                 })
+                return false
             end
+        else
+            Rayfield:Notify({
+                Title = "Trade System Error",
+                Content = "InitiateTrade function not found",
+                Duration = 3,
+                Image = "x",
+            })
+            return false
         end
-        
-        return false
     end)
     
     if not success then
         warn("Send trade error: " .. tostring(error))
         Rayfield:Notify({
             Title = "Trade Error",
-            Content = "Failed to send trade",
-            Duration = 3,
+            Content = "Error: " .. tostring(error),
+            Duration = 5,
             Image = "x",
         })
         return false
@@ -621,6 +603,103 @@ local Button = PlayerTab:CreateButton({
             Rayfield:Notify({
                 Title = "No Players Nearby",
                 Content = "No players found within range",
+                Duration = 3,
+                Image = "info",
+            })
+        end
+    end,
+})
+
+-- Debug button to check equipped item
+local DebugButton = PlayerTab:CreateButton({
+    Name = "Debug: Check Equipped Item",
+    Callback = function()
+        local success, error = pcall(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local Replion = require(ReplicatedStorage.Packages.Replion)
+            local Client = Replion.Client
+            local dataReplion = Client:WaitReplion("Data")
+            local equippedId = dataReplion:Get("EquippedId")
+            local inventory = dataReplion:Get("Inventory")
+            
+            print("=== DEBUG INFO ===")
+            print("Equipped ID:", equippedId)
+            
+            if inventory then
+                print("Inventory categories:")
+                for category, items in pairs(inventory) do
+                    print("- Category:", category)
+                    if type(items) == "table" then
+                        for uuid, item in pairs(items) do
+                            if uuid == equippedId then
+                                print("  * EQUIPPED ITEM FOUND:")
+                                print("    UUID:", uuid)
+                                print("    Item ID:", item.Id)
+                                print("    Quantity:", item.Quantity)
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            print("=================")
+            
+            Rayfield:Notify({
+                Title = "Debug Complete",
+                Content = "Check console for debug info",
+                Duration = 3,
+                Image = "info",
+            })
+        end)
+        
+        if not success then
+            print("Debug error:", error)
+            Rayfield:Notify({
+                Title = "Debug Error",
+                Content = tostring(error),
+                Duration = 3,
+                Image = "x",
+            })
+        end
+    end,
+})
+
+-- Alternative trade method using player dropdown
+local selectedTradePlayer = nil
+local TradePlayerDropdown = PlayerTab:CreateDropdown({
+    Name = "Select Player to Trade",
+    Options = (function()
+        local players = {"Select a player..."}
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if player ~= game.Players.LocalPlayer then
+                table.insert(players, player.Name)
+            end
+        end
+        return players
+    end)(),
+    CurrentOption = {"Select a player..."},
+    MultipleOptions = false,
+    Flag = "tradeplayer",
+    Callback = function(Options)
+        local selectedName = Options[1]
+        if selectedName ~= "Select a player..." then
+            selectedTradePlayer = game.Players:FindFirstChild(selectedName)
+        else
+            selectedTradePlayer = nil
+        end
+    end,
+})
+
+-- Send trade to selected player
+local SendTradeButton = PlayerTab:CreateButton({
+    Name = "Send Trade to Selected Player",
+    Callback = function()
+        if selectedTradePlayer then
+            sendTradeToPlayer(selectedTradePlayer)
+        else
+            Rayfield:Notify({
+                Title = "No Player Selected",
+                Content = "Please select a player first",
                 Duration = 3,
                 Image = "info",
             })
