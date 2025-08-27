@@ -1,0 +1,2848 @@
+local Fluent = loadstring(game:HttpGet("https://raw.githubusercontent.com/danuup16/mnbru/refs/heads/main/mnu"))()
+local HttpService = game:GetService("HttpService")
+local AutoConfig = {} do
+    AutoConfig.FolderName = "DJSTest"
+    AutoConfig.ConfigFile = "DJS.json"
+    AutoConfig.Library = nil
+    AutoConfig.LastSaveTime = 0
+    AutoConfig.IsMonitoring = false
+    AutoConfig.Parsers = {
+        Toggle = {
+            Save = function(idx, option) 
+                return { type = "Toggle", idx = idx, value = option.Value } 
+            end,
+            Load = function(idx, data, options)
+                if options[idx] then 
+                    options[idx]:SetValue(data.value)
+                end
+            end,
+        },
+        Slider = {
+            Save = function(idx, option)
+                return { type = "Slider", idx = idx, value = tonumber(option.Value) }
+            end,
+            Load = function(idx, data, options)
+                if options[idx] then 
+                    options[idx]:SetValue(data.value)
+                end
+            end,
+        },
+        Dropdown = {
+            Save = function(idx, option)
+                return { type = "Dropdown", idx = idx, value = option.Value, multi = option.Multi }
+            end,
+            Load = function(idx, data, options)
+                if options[idx] then 
+                    options[idx]:SetValue(data.value)
+                end
+            end,
+        },
+        Colorpicker = {
+            Save = function(idx, option)
+                return { type = "Colorpicker", idx = idx, value = option.Value:ToHex(), transparency = option.Transparency }
+            end,
+            Load = function(idx, data, options)
+                if options[idx] then 
+                    options[idx]:SetValueRGB(Color3.fromHex(data.value), data.transparency)
+                end
+            end,
+        },
+        Input = {
+            Save = function(idx, option)
+                return { type = "Input", idx = idx, text = option.Value }
+            end,
+            Load = function(idx, data, options)
+                if options[idx] and type(data.text) == "string" then
+                    options[idx]:SetValue(data.text)
+                end
+            end,
+        },
+    }
+    
+    function AutoConfig:Initialize(library)
+        self.Library = library
+        self:CreateFolders()
+        wait(2) 
+        self:LoadConfig()
+        self:StartChangeMonitoring()
+    end
+    
+    function AutoConfig:CreateFolders()
+        if not isfolder(self.FolderName) then
+            makefolder(self.FolderName)
+        end
+    end
+    
+    function AutoConfig:GetFilePath()
+        return self.FolderName .. "/" .. self.ConfigFile
+    end
+    
+    function AutoConfig:SaveConfig()
+        local data = { objects = {} }
+        
+        for idx, option in pairs(self.Library.Options) do
+            local parser = self.Parsers[option.Type]
+            if parser then
+                table.insert(data.objects, parser.Save(idx, option))
+            end
+        end
+        
+        local success, encoded = pcall(HttpService.JSONEncode, HttpService, data)
+        if success then
+            writefile(self:GetFilePath(), encoded)
+            self.LastSaveTime = tick()
+            return true, "Config saved successfully"
+        else
+            return false, "Failed to encode config data"
+        end
+    end
+    
+    function AutoConfig:LoadConfig()
+        local filePath = self:GetFilePath()
+        
+        if not isfile(filePath) then
+            return false, "No config file found"
+        end
+        
+        local success, decoded = pcall(HttpService.JSONDecode, HttpService, readfile(filePath))
+        if not success then
+            return false, "Failed to decode config"
+        end
+        
+        for _, item in pairs(decoded.objects) do
+            local parser = self.Parsers[item.type]
+            if parser then
+                spawn(function()
+                    parser.Load(item.idx, item, self.Library.Options)
+                end)
+            end
+        end
+        return true, "Config loaded successfully"
+    end
+    
+    function AutoConfig:StartChangeMonitoring()
+        if self.IsMonitoring then return end
+        self.IsMonitoring = true
+        local lastValues = {}
+        for idx, option in pairs(self.Library.Options) do
+            lastValues[idx] = self:GetOptionValue(option)
+        end
+        
+        spawn(function()
+            while self.IsMonitoring do
+                wait(0.5)
+                
+                local hasChanges = false
+                for idx, option in pairs(self.Library.Options) do
+                    local currentValue = self:GetOptionValue(option)
+                    if self:ValuesAreDifferent(lastValues[idx], currentValue) then
+                        lastValues[idx] = currentValue
+                        hasChanges = true
+                    end
+                end
+                
+                if hasChanges then
+                    local success, msg = self:SaveConfig()
+                end
+            end
+        end)
+    end
+    
+    function AutoConfig:GetOptionValue(option)
+        if option.Type == "Toggle" then
+            return option.Value
+        elseif option.Type == "Slider" then
+            return option.Value
+        elseif option.Type == "Dropdown" then
+            return option.Value
+        elseif option.Type == "Input" then
+            return option.Value
+        elseif option.Type == "Colorpicker" then
+            return {option.Value:ToHex(), option.Transparency}
+        end
+        return nil
+    end
+    
+    function AutoConfig:ValuesAreDifferent(oldValue, newValue)
+        if type(oldValue) ~= type(newValue) then
+            return true
+        end
+        
+        if type(oldValue) == "table" then
+            if #oldValue ~= #newValue then return true end
+            for i = 1, #oldValue do
+                if oldValue[i] ~= newValue[i] then return true end
+            end
+            return false
+        end
+        
+        return oldValue ~= newValue
+    end
+    
+    function AutoConfig:StopMonitoring()
+        self.IsMonitoring = false
+    end
+    
+    function AutoConfig:ManualSave()
+        return self:SaveConfig()
+    end
+    
+    function AutoConfig:GetLastSaveTime()
+        return self.LastSaveTime
+    end
+end
+
+-- Window Creation
+local Window = Fluent:CreateWindow({
+    Title = "#DJSTEST - FISH IT V.0.6",
+    SubTitle = "https://discord.gg/uwXYuxj6cF",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(680, 560),
+    Transparency = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.F
+})
+
+-- addTabs
+local Tabs = {
+    Info = Window:AddTab({ Title = "Info Script", Icon = "info" }),
+    Player = Window:AddTab({ Title = "Player", Icon = "user-round-cog" }),
+    Fishing = Window:AddTab({ Title = "Fishing", Icon = "fish" }),
+    Teleport = Window:AddTab({ Title = "Teleport", Icon = "map-pin" }),
+    Buy = Window:AddTab({ Title = "Buy", Icon = "shopping-cart" }),
+    Webhook = Window:AddTab({ Title = "Webhook", Icon = "bell-ring" }),
+    ESP = Window:AddTab({ Title = "ESP", Icon = "eye" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
+
+local Options = Fluent.Options
+-- Variables for character setup
+local defaultWalkSpeed = 16
+local defaultJumpPower = 16
+
+-- Character setup function
+local function setupCharacter()
+    local player = game.Players.LocalPlayer
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        local humanoid = player.Character.Humanoid
+        if not Options.WalkSpeedSlider then
+            defaultWalkSpeed = humanoid.WalkSpeed
+        end
+        if not Options.JumpHeightSlider then
+            defaultJumpPower = humanoid.JumpPower
+        end
+        if Options.WalkSpeedSlider then
+            humanoid.WalkSpeed = Options.WalkSpeedSlider.Value or defaultWalkSpeed
+        end
+        if Options.JumpHeightSlider then
+            humanoid.JumpPower = Options.JumpHeightSlider.Value or defaultJumpPower
+        end
+    end
+end
+
+game.Players.LocalPlayer.CharacterAdded:Connect(setupCharacter)
+if game.Players.LocalPlayer.Character then
+    setupCharacter()
+end
+
+-- Info Tab
+do
+    Tabs.Info:AddButton({
+        Title = "New Discord Server",
+        Description = "Copy Discord invite link",
+        Callback = function()
+            setclipboard("https://discord.gg/uwXYuxj6cF")
+            Fluent:Notify({
+                Title = "Copied to clipboard",
+                Content = "Discord link copied!",
+                Duration = 5
+            })
+        end
+    })
+    
+    Tabs.Info:AddButton({
+        Title = "Tiktok",
+        Description = "Copy Tiktok profile link",
+        Callback = function()
+            setclipboard("https://www.tiktok.com/@daanujs_")
+            Fluent:Notify({
+                Title = "Copied to clipboard",
+                Content = "Tiktok link copied!",
+                Duration = 5
+            })
+        end
+    })
+end
+
+-- Player Tab
+do
+    -- Walk Speed
+    local WalkSpeedSlider = Tabs.Player:AddSlider("WalkSpeedSlider", {
+        Title = "Walk Speed",
+        Description = "Control your walking speed",
+        Default = defaultWalkSpeed,
+        Min = 16,
+        Max = 100,
+        Rounding = 1,
+        Callback = function(Value)
+            local player = game.Players.LocalPlayer
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.WalkSpeed = Value
+            end
+        end
+    })
+    
+    -- Jump Height
+    local JumpHeightSlider = Tabs.Player:AddSlider("JumpHeightSlider", {
+        Title = "Jump Height",
+        Description = "Control your jumping power",
+        Default = defaultJumpPower,
+        Min = 0,
+        Max = 500,
+        Rounding = 1,
+        Callback = function(Value)
+            local player = game.Players.LocalPlayer
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.JumpPower = Value
+            end
+        end
+    })
+    
+    -- Fly variables and functions
+    local flyBodyVelocity = nil
+    local flyBodyPosition = nil
+    local isFlyActive = false
+    local flySpeed = 50
+    
+    local FlySpeedSlider = Tabs.Player:AddSlider("FlySpeedSlider", {
+        Title = "Fly Speed",
+        Description = "Control your flying speed",
+        Default = flySpeed,
+        Min = 10,
+        Max = 1000,
+        Rounding = 5,
+        Callback = function(Value)
+            flySpeed = Value
+        end
+    })
+    
+    local function enableFly()
+        local player = game.Players.LocalPlayer
+        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+            return false
+        end
+        local humanoidRootPart = player.Character.HumanoidRootPart
+        flyBodyVelocity = Instance.new("BodyVelocity")
+        flyBodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+        flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        flyBodyVelocity.Parent = humanoidRootPart
+        flyBodyPosition = Instance.new("BodyPosition")
+        flyBodyPosition.MaxForce = Vector3.new(4000, 4000, 4000)
+        flyBodyPosition.Position = humanoidRootPart.Position
+        flyBodyPosition.Parent = humanoidRootPart
+        return true
+    end
+    
+    local function disableFly()
+        if flyBodyVelocity then
+            flyBodyVelocity:Destroy()
+            flyBodyVelocity = nil
+        end
+        if flyBodyPosition then
+            flyBodyPosition:Destroy()
+            flyBodyPosition = nil
+        end
+    end
+    
+    local function updateFlyMovement()
+        local player = game.Players.LocalPlayer
+        local camera = workspace.CurrentCamera
+        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+            return
+        end
+        local humanoidRootPart = player.Character.HumanoidRootPart
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if not flyBodyVelocity or not flyBodyPosition or not humanoid then
+            return
+        end
+        local moveVector = humanoid.MoveDirection
+        local velocity = Vector3.new(0, 0, 0)
+        if moveVector.Magnitude > 0 then
+            local cameraDirection = camera.CFrame.LookVector
+            local flatDirection = Vector3.new(cameraDirection.X, 0, cameraDirection.Z).Unit
+            velocity = flatDirection * moveVector.Magnitude * flySpeed
+        end
+        local userInputService = game:GetService("UserInputService")
+        if userInputService:IsKeyDown(Enum.KeyCode.Space) then
+            velocity = velocity + Vector3.new(0, flySpeed, 0)
+        end
+        if userInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            velocity = velocity + Vector3.new(0, -flySpeed, 0)
+        end
+        flyBodyVelocity.Velocity = velocity
+        if velocity.Magnitude == 0 then
+            flyBodyPosition.Position = humanoidRootPart.Position
+        else
+            flyBodyPosition.Position = humanoidRootPart.Position + velocity * 0.1
+        end
+    end
+    
+    local flyToggle = Tabs.Player:AddToggle("FlyToggle", {
+        Title = "Fly",
+        Description = "Enable flying mode",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                if not isFlyActive then
+                    if enableFly() then
+                        isFlyActive = true
+                        spawn(function()
+                            while isFlyActive do
+                                updateFlyMovement()
+                                game:GetService("RunService").Heartbeat:Wait()
+                            end
+                        end)
+                    end
+                end
+            else
+                if isFlyActive then
+                    isFlyActive = false
+                    disableFly()
+                end
+            end
+        end
+    })
+    
+    -- Infinite Jump
+    local infiniteJumpConnection = nil
+    local isInfiniteJumpActive = false
+    
+    local function enableInfiniteJump()
+        if infiniteJumpConnection then
+            infiniteJumpConnection:Disconnect()
+        end
+        infiniteJumpConnection = game:GetService("UserInputService").JumpRequest:Connect(function()
+            local player = game.Players.LocalPlayer
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end)
+    end
+    
+    local function disableInfiniteJump()
+        if infiniteJumpConnection then
+            infiniteJumpConnection:Disconnect()
+            infiniteJumpConnection = nil
+        end
+    end
+    
+    local infiniteJump = Tabs.Player:AddToggle("InfiniteJump", {
+        Title = "Infinite Jump",
+        Description = "Jump infinitely without touching ground",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                if not isInfiniteJumpActive then
+                    enableInfiniteJump()
+                    isInfiniteJumpActive = true
+                end
+            else
+                if isInfiniteJumpActive then
+                    disableInfiniteJump()
+                    isInfiniteJumpActive = false
+                end
+            end
+        end
+    })
+    
+    -- No Clip
+    local isNoclipActive = false
+    local noclipConnection = nil
+    local RunService = game:GetService("RunService")
+    
+    local function enableNoclip()
+        local player = game.Players.LocalPlayer
+        if not player.Character then
+            return false
+        end
+        if noclipConnection then
+            noclipConnection:Disconnect()
+        end
+        noclipConnection = RunService.Stepped:Connect(function()
+            if not isNoclipActive then
+                noclipConnection:Disconnect()
+                return
+            end
+            local character = player.Character
+            if character then
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+        
+        return true
+    end
+    
+    local function disableNoclip()
+        local player = game.Players.LocalPlayer
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+        if player.Character then
+            for _, part in pairs(player.Character:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                    if part.Name == "Head" or part.Name:find("Torso") or part.Name:find("Arm") or part.Name:find("Leg") then
+                        part.CanCollide = false
+                    else
+                        part.CanCollide = true
+                    end
+                end
+            end
+            if player.Character:FindFirstChild("HumanoidRootPart") then
+                player.Character.HumanoidRootPart.CanCollide = false
+            end
+        end
+    end
+    
+    local function setupCharacterNoclip()
+        local player = game.Players.LocalPlayer
+        if player.Character and isNoclipActive then
+            wait(0.5)
+            enableNoclip()
+        end
+    end
+    
+    game.Players.LocalPlayer.CharacterAdded:Connect(setupCharacterNoclip)
+    
+    local noclipToggle = Tabs.Player:AddToggle("NoClip", {
+        Title = "No Clip",
+        Description = "Walk through walls",
+        Default = false,
+        Callback = function(Value)
+            isNoclipActive = Value
+            if Value then
+                enableNoclip()
+            else
+                disableNoclip()
+            end
+        end
+    })
+    
+    -- Anti AFK
+    local antiAfkConnection = nil
+    local isAntiAfkActive = false
+    
+    local antiAfkToggle = Tabs.Player:AddToggle("AntiAfk", {
+        Title = "Anti AFK",
+        Description = "Prevent getting kicked for being idle",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                if not isAntiAfkActive then
+                    local VirtualUser = game:GetService('VirtualUser')
+                    antiAfkConnection = game:GetService('Players').LocalPlayer.Idled:Connect(function()
+                        VirtualUser:CaptureController()
+                        VirtualUser:ClickButton2(Vector2.new())
+                    end)
+                    isAntiAfkActive = true
+                end
+            else
+                if antiAfkConnection and isAntiAfkActive then
+                    antiAfkConnection:Disconnect()
+                    antiAfkConnection = nil
+                    isAntiAfkActive = false
+                end
+            end
+        end
+    })
+    -- Tambahkan setelah Anti AFK section di Player Tab (sekitar baris 400-500)
+
+    -- Auto Trade Section
+    local isAutoTradeActive = false
+    local isAutoGiveActive = false
+    local autoTradeConnection = nil
+    local hookApplied = false
+    local originalCreateTradePrompt = nil
+
+    local function setupAutoTrade()
+        local success, error = pcall(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
+            if Controllers then
+                local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
+                if ItemTradingController then
+                    local controller = require(ItemTradingController)
+                    if not originalCreateTradePrompt and controller.CreateTradePrompt then
+                        originalCreateTradePrompt = controller.CreateTradePrompt
+                    end
+                    
+                    controller.CreateTradePrompt = function(self, itemData, itemInfo, tradeInfo)
+                        if isAutoTradeActive and tradeInfo and tradeInfo.sender then
+                            local Promise = require(ReplicatedStorage.Packages.Promise)
+                            return Promise.resolve(true)
+                        end
+                        
+                        if isAutoGiveActive and tradeInfo and tradeInfo.target then
+                            local Promise = require(ReplicatedStorage.Packages.Promise)
+                            return Promise.resolve(true)
+                        end
+                        
+                        if originalCreateTradePrompt then
+                            return originalCreateTradePrompt(self, itemData, itemInfo, tradeInfo)
+                        else
+                            local Promise = require(ReplicatedStorage.Packages.Promise)
+                            return Promise.reject("Original function not found")
+                        end
+                    end
+                    hookApplied = true
+                    if autoTradeConnection then
+                        autoTradeConnection:Disconnect()
+                    end
+                    autoTradeConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                        if tick() % 5 < 0.1 then
+                            local currentController = require(ItemTradingController)
+                            if currentController.CreateTradePrompt ~= controller.CreateTradePrompt then
+                                currentController.CreateTradePrompt = controller.CreateTradePrompt
+                            end
+                        end
+                    end)
+                    
+                    return true
+                end
+            end
+            
+            warn("[AUTO ACCEPT] ItemTradingController not found!")
+            return false
+        end)
+        
+        if not success then
+            warn("Auto accept setup error: " .. tostring(error))
+            return false
+        end
+        return success
+    end
+
+    local function disableAutoTrade()
+        local success, error = pcall(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
+            
+            if Controllers then
+                local ItemTradingController = Controllers:FindFirstChild("ItemTradingController")
+                if ItemTradingController then
+                    local controller = require(ItemTradingController)
+                    if originalCreateTradePrompt then
+                        controller.CreateTradePrompt = originalCreateTradePrompt
+                    end
+                end
+            end
+            
+            if autoTradeConnection then
+                autoTradeConnection:Disconnect()
+                autoTradeConnection = nil
+            end
+            
+            hookApplied = false
+            return true
+        end)
+        
+        if not success then
+            warn("Disable auto accept error: " .. tostring(error))
+            return false
+        end
+        return success
+    end
+
+    -- Auto Trade Toggle
+    local autoTradeToggle = Tabs.Player:AddToggle("AutoTrade", {
+        Title = "Auto Trade",
+        Description = "Automatically accept incoming and outgoing trades",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                if not isAutoTradeActive and not isAutoGiveActive then
+                    if setupAutoTrade() then
+                        isAutoTradeActive = true
+                        isAutoGiveActive = true
+                        Fluent:Notify({
+                            Title = "Auto Trade Enabled",
+                            Content = "Will automatically accept all trades",
+                            Duration = 3
+                        })
+                    else
+                        Options.AutoTrade:SetValue(false)
+                        Fluent:Notify({
+                            Title = "Auto Trade Failed",
+                            Content = "Failed to setup auto trade system",
+                            Duration = 5
+                        })
+                    end
+                end
+            else
+                if isAutoTradeActive or isAutoGiveActive then
+                    isAutoTradeActive = false
+                    isAutoGiveActive = false
+                    disableAutoTrade()
+                    Fluent:Notify({
+                        Title = "Auto Trade Disabled",
+                        Content = "Auto trade system disabled",
+                        Duration = 3
+                    })
+                end
+            end
+        end
+    })
+
+end
+-- Fishing Tab
+do
+    local fishTab = Tabs.Fishing
+    
+    local isAutoFishActive = false
+    local fishingDelay = 2.3 
+    local isAutoPerfectActive = false
+    local isAutoAmazingActive = false
+    local toolRefreshInterval = 300
+    local lastToolRefreshTime = 0
+
+    local function equipFishingTool()
+        local success, error = pcall(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+            if not netFolder or not netFolder:FindFirstChild("net") then
+                warn("Network folder not found!")
+                return false
+            end
+            local net = netFolder.net
+            local equipTool = net:FindFirstChild("RE/EquipToolFromHotbar")
+            if equipTool then
+                equipTool:FireServer(1)
+                return true
+            end
+            return false
+        end)
+        if not success then
+            warn("Equip tool error: " .. tostring(error))
+            return false
+        end
+        return success
+    end
+    
+    local function unequipFishingTool()
+        local success, error = pcall(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+            if not netFolder or not netFolder:FindFirstChild("net") then
+                warn("Network folder not found!")
+                return false
+            end
+            local net = netFolder.net
+            local unequipTool = net:FindFirstChild("RE/UnequipToolFromHotbar")
+            if unequipTool then
+                unequipTool:FireServer()
+                return true
+            end
+            return false
+        end)
+        
+        if not success then
+            warn("Unequip tool error: " .. tostring(error))
+            return false
+        end
+        return success
+    end
+
+    local function refreshFishingTool()
+        local success, error = pcall(function()
+            if unequipFishingTool() then
+                wait(0.5)
+                if equipFishingTool() then
+                    return true
+                else
+                    warn("[AUTO FISHING] Failed to re-equip tool after refresh")
+                    return false
+                end
+            else
+                warn("[AUTO FISHING] Failed to unequip tool during refresh")
+                return false
+            end
+        end)
+        
+        if not success then
+            warn("Tool refresh error: " .. tostring(error))
+            return false
+        end
+        return success
+    end
+
+    local function performFishingCycle()
+        local success, error = pcall(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+            
+            if not netFolder or not netFolder:FindFirstChild("net") then
+                warn("Network folder not found!")
+                return
+            end
+            local net = netFolder.net
+            local chargeFishingRod = net:FindFirstChild("RF/ChargeFishingRod")
+            if chargeFishingRod then
+                if isAutoPerfectActive then
+                    local value = 9999999999
+                    chargeFishingRod:InvokeServer(value)
+                elseif isAutoAmazingActive then
+                    local value = 1755509015.922411
+                    chargeFishingRod:InvokeServer(value)
+                else
+                    local value = math.random(8000, 10000)
+                    chargeFishingRod:InvokeServer(value)
+                end
+                task.wait(0.3)
+            end
+            local requestFishing = net:FindFirstChild("RF/RequestFishingMinigameStarted")
+            if requestFishing then
+                if isAutoPerfectActive then
+                    requestFishing:InvokeServer(0, 1)
+                elseif isAutoAmazingActive then
+                    requestFishing:InvokeServer(-139.6379699707, 0.87694226394928)
+                else
+                    local randomX = math.random(-200, 200) / 100
+                    local randomY = math.random(50, 100) / 100
+                    requestFishing:InvokeServer(randomX, randomY)
+                end
+            end
+            task.wait(fishingDelay)
+            local fishingCompleted = net:FindFirstChild("RE/FishingCompleted")
+            if fishingCompleted then
+                fishingCompleted:FireServer()
+                task.wait(0.5)
+                
+                local currentTime = tick()
+                if currentTime - lastToolRefreshTime >= toolRefreshInterval then
+                    if refreshFishingTool() then
+                        lastToolRefreshTime = currentTime
+                        task.wait(1)
+                    else
+                        warn("[AUTO FISHING] Tool refresh failed, continuing without refresh")
+                    end
+                end
+            end
+        end)
+        if not success then
+            warn("Fishing cycle error: " .. tostring(error))
+        end
+    end
+
+    local autoFishToggle = fishTab:AddToggle("AutoFishing", {
+        Title = "Auto Fishing",
+        Description = "Automatically fish for you",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                if not isAutoFishActive then
+                    if equipFishingTool() then
+                        isAutoFishActive = true
+                        lastToolRefreshTime = tick()
+                        wait(1) 
+                        spawn(function()
+                            while isAutoFishActive do
+                                if not isAutoFishActive then break end 
+                                performFishingCycle()
+                                for i = 1, 10 do
+                                    if not isAutoFishActive then break end
+                                    wait(0.1)
+                                end
+                            end
+                        end)
+                    end
+                end
+            else
+                if isAutoFishActive then
+                    isAutoFishActive = false 
+                    spawn(function()
+                        if unequipFishingTool() then
+                        end
+                    end)
+                end
+            end
+        end
+    })
+
+    local autoPerfectToggle = fishTab:AddToggle("AutoPerfect", {
+        Title = "Auto Perfect",
+        Description = "Always get perfect fishing results",
+        Default = false,
+        Callback = function(Value)
+            isAutoPerfectActive = Value
+            if Value then
+                isAutoAmazingActive = false
+                if Options.AutoAmazing then
+                    Options.AutoAmazing:SetValue(false)
+                end
+            end
+        end
+    })
+
+    local autoAmazingToggle = fishTab:AddToggle("AutoAmazing", {
+        Title = "Auto Amazing",
+        Description = "Always get amazing fishing results",
+        Default = false,
+        Callback = function(Value)
+            isAutoAmazingActive = Value
+            if Value then
+                isAutoPerfectActive = false
+                Options.AutoPerfect:SetValue(false)
+            end
+        end
+    })
+
+    local isInstantReelActive = false
+    local instantReelConnection = nil
+
+    local function startInstantReel()
+        if instantReelConnection then
+            instantReelConnection:Disconnect()
+        end
+        
+        local RunService = game:GetService("RunService")
+        instantReelConnection = RunService.Heartbeat:Connect(function()
+            if not isInstantReelActive then
+                instantReelConnection:Disconnect()
+                return
+            end
+            
+            local success, error = pcall(function()
+                local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+                if netFolder and netFolder:FindFirstChild("net") then
+                    local net = netFolder.net
+                    local fishingCompleted = net:FindFirstChild("RE/FishingCompleted")
+                    if fishingCompleted then
+                        fishingCompleted:FireServer()
+                    end
+                end
+            end)
+            
+            if not success then
+                warn("Instant reel error: " .. tostring(error))
+            end
+        end)
+    end
+
+    local function stopInstantReel()
+        if instantReelConnection then
+            instantReelConnection:Disconnect()
+            instantReelConnection = nil
+        end
+    end
+
+    local instantReelToggle = fishTab:AddToggle("InstantReel", {
+        Title = "Instant Reel",
+        Description = "Instantly reel in fish",
+        Default = false,
+        Callback = function(Value)
+            isInstantReelActive = Value
+            if Value then
+                startInstantReel()
+            else
+                stopInstantReel()
+            end
+        end
+    })
+
+    local sellAllButton = fishTab:AddButton({
+        Title = "Sell All Fish",
+        Description = "Sell all fish in your inventory",
+        Callback = function()
+            local success, error = pcall(function()
+                local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+                if netFolder and netFolder:FindFirstChild("net") then
+                    local net = netFolder.net
+                    local sellAllItems = net:FindFirstChild("RF/SellAllItems")
+                    if sellAllItems then
+                        sellAllItems:InvokeServer()
+                        Fluent:Notify({
+                            Title = "Success",
+                            Content = "All fish sold!",
+                            Duration = 3
+                        })
+                    end
+                end
+            end)
+            if not success then
+                warn("Sell all fish error: " .. tostring(error))
+            end
+        end
+    })
+
+    fishTab:AddSection("Auto Farm")
+    
+    local selectedFarmLocation = nil
+    local isAutoFarmActive = false
+    local farmLocations = {
+        ["Kohana"] = CFrame.new(-684.971558, 0.956680596, 800.067017, -5, 0, 1, 0, 1, -0, -1, 0, 0),
+        ["Kohana Volcano"] = CFrame.new(-630.899231, 57.036438, 206.378662, 1, 0, 0.81913656, 0, 1, 0, -0.81913656, 0, -0.573599219),
+        ["Tropical Grove"] = CFrame.new(-2134.633301, 6.646839, 3641.041016, -0.787255, 0.000000, -0.616627, 0.000000, 1.000000, -0.000000, 0.616627, -0.000000, -0.787255),
+        ["Tropical Grove 2"] = CFrame.new(-2202.405762, 25.430653, 3607.925781, 0.457824, 0.000000, 0.889043, 0.000000, 1.000000, -0.000000, -0.889043, 0.000000, 0.457824),
+        ["Sisyphus Statue"] = CFrame.new(-3730.283203, -99.316132, -947.356995, 0.871698, 0.000000, 0.490044, -0.000000, 1.000000, 0.000000, -0.490044, -0.000000, 0.871698),
+        ["Weather Machine"] = CFrame.new(-1541.473877, 2.875000, 1918.276733, -0.984437, 0.000000, 0.175738, 0.000000, 1.000000, -0.000000, -0.175738, -0.000000, -0.984437),
+        ["Treasure Room"] = CFrame.new(-3650.865479, -279.073822, -1615.960327, 0.518514, -0.000000, -0.855069, 0.000000, 1.000000, 0.000000, 0.855069, -0.000000, 0.518514),
+        ["Esoteric Island"] = CFrame.new(1988.061768, 7.207217, 1363.772339, 0.031890, -0.000000, 0.999491, -0.000000, 1.000000, 0.000000, -0.999491, -0.000000, 0.031890),
+        ["Crater Island"] = CFrame.new(991.782410, 7.904960, 5082.351562, -0.711836, -0.000000, 0.702345, 0.000000, 1.000000, 0.000000, -0.702345, 0.000000, -0.711836),
+        ["Coral Reefs"] = CFrame.new(-3212.688477, 10.198070, 2004.139648, 0.778372, -0.000000, -0.627804, 0.000000, 1.000000, -0.000000, 0.627804, -0.000000, 0.778372),
+        ["Stingray Shores"] = CFrame.new(185.923218, 3.750000, 3005.877441, 0.972514, -0.000000, -0.232845, 0.000000, 1.000000, 0.000000, 0.232845, -0.000000, 0.972514),
+        ["Ocean"] = CFrame.new(1756.653687, 2.299988, 3358.764893, 0.200904, -0.000000, -0.979611, 0.000000, 1.000000, -0.000000, 0.979611, -0.000000, 0.200904),
+        ["Esoteric Depths"] = CFrame.new(3231.490234, -1302.105103, 1453.461060, 0.988762, 0.000000, -0.149498, -0.000000, 1.000000, -0.000000, 0.149498, 0.000000, 0.988762)
+    }
+
+    local farmLocationDropdown = fishTab:AddDropdown("FarmLocation", {
+        Title = "Select Farm Location",
+        Description = "Choose location for auto farming",
+        Values = {
+            "Kohana",
+            "Kohana Volcano", 
+            "Tropical Grove",
+            "Tropical Grove 2",
+            "Sisyphus Statue",
+            "Weather Machine",
+            "Treasure Room",
+            "Esoteric Island",
+            "Crater Island",
+            "Coral Reefs",
+            "Stingray Shores",
+            "Ocean",
+            "Esoteric Depths"
+        },
+        Multi = false,
+        Default = 1,
+        Callback = function(Value)
+            selectedFarmLocation = Value
+        end
+    })
+
+    local function startAutoFarm()
+        if not selectedFarmLocation then
+            Fluent:Notify({
+                Title = "Error",
+                Content = "Please select a location first!",
+                Duration = 5
+            })
+            return false
+        end
+        local player = game.Players.LocalPlayer
+        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+            return false
+        end
+        local targetCFrame = farmLocations[selectedFarmLocation]
+        if targetCFrame then
+            player.Character.HumanoidRootPart.CFrame = targetCFrame
+            wait(2)
+            Options.AutoFishing:SetValue(true)
+            Options.NoClip:SetValue(true)
+            
+            Fluent:Notify({
+                Title = "Auto Farm Started",
+                Content = "Farming at " .. selectedFarmLocation,
+                Duration = 3
+            })
+            
+            spawn(function()
+                while isAutoFarmActive do
+                    wait(5)
+                    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                        local currentPos = player.Character.HumanoidRootPart.Position
+                        local targetPos = targetCFrame.Position
+                        local distance = (currentPos - targetPos).Magnitude
+                        if distance > 50 then
+                            player.Character.HumanoidRootPart.CFrame = targetCFrame
+                            wait(1)
+                        end
+                    end
+                end
+            end)
+            return true
+        end
+        return false
+    end
+
+    local function stopAutoFarm()
+        isAutoFarmActive = false
+        Options.AutoFishing:SetValue(false)
+        Options.NoClip:SetValue(false)
+        
+        Fluent:Notify({
+            Title = "Auto Farm Stopped",
+            Content = "Farming has been disabled",
+            Duration = 3
+        })
+    end
+
+    local farmToggle = fishTab:AddToggle("StartFarm", {
+        Title = "Start Auto Farm",
+        Description = "Start auto farming at selected location",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                if not isAutoFarmActive then
+                    isAutoFarmActive = true
+                    if not startAutoFarm() then
+                        Options.StartFarm:SetValue(false)
+                    end
+                end
+            else
+                if isAutoFarmActive then
+                    stopAutoFarm()
+                end
+            end
+        end
+    })
+end
+-- Teleport Tab
+-- Teleport Tab
+do
+    local teleportTab = Tabs.Teleport
+    
+    -- Player Teleport Section
+    local currentPlayerList = {}
+    local isDropdownInitialized = false
+    local lastSelectedOption = "Select a player..."
+
+    local function getPlayerList()
+        local players = {}
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if player ~= game.Players.LocalPlayer then
+                table.insert(players, player.Name)
+            end
+        end
+        return players
+    end
+
+    local function updatePlayerDropdown()
+        currentPlayerList = getPlayerList()
+        if Options.TeleportToPlayer then
+            if #currentPlayerList > 0 then
+                local options = {"Select a player..."}
+                for _, playerName in ipairs(currentPlayerList) do
+                    table.insert(options, playerName)
+                end
+                Options.TeleportToPlayer:SetValues(options)
+            end
+        end
+    end
+
+    local function teleportToPlayer(playerName)
+        if not isDropdownInitialized then return end
+        if playerName == lastSelectedOption then return end
+        lastSelectedOption = playerName
+        if playerName == "No players available" or playerName == "Select a player..." then
+            return
+        end
+
+        local success, error = pcall(function()
+            local targetPlayer = game.Players:FindFirstChild(playerName)
+            local localPlayer = game.Players.LocalPlayer
+
+            if not targetPlayer or not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                return
+            end
+
+            if not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                return
+            end
+
+            local targetPosition = targetPlayer.Character.HumanoidRootPart.Position
+            local offsetPosition = targetPosition + Vector3.new(math.random(-5, 5), 0, math.random(-5, 5))
+            localPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(offsetPosition)
+            
+            Fluent:Notify({
+                Title = "Teleported",
+                Content = "Teleported to " .. playerName,
+                Duration = 3
+            })
+        end)
+    end
+
+    currentPlayerList = getPlayerList()
+    local playerTeleportDropdown = teleportTab:AddDropdown("TeleportToPlayer", {
+        Title = "Teleport To Player",
+        Description = "Select a player to teleport to",
+        Values = #currentPlayerList > 0 and (function() 
+            local options = {"Select a player..."}
+            for _, playerName in ipairs(currentPlayerList) do
+                table.insert(options, playerName)
+            end
+            return options
+        end)() or {"Select a player...", "No players available"},
+        Multi = false,
+        Default = 1,
+        Callback = function(Value)
+            if Value == "Select a player..." or Value == "No players available" then
+                return
+            end
+            
+            if Value and isDropdownInitialized then
+                spawn(function()
+                    wait(0.1)
+                    teleportToPlayer(Value)
+                    -- Reset to default after teleport
+                    Options.TeleportToPlayer:SetValue("Select a player...")
+                end)
+            end
+        end
+    })
+
+    spawn(function()
+        wait(2)
+        isDropdownInitialized = true
+    end)
+
+    local refreshPlayerButton = teleportTab:AddButton({
+        Title = "Refresh Player List",
+        Description = "Update the list of available players",
+        Callback = function()
+            updatePlayerDropdown()
+            Fluent:Notify({
+                Title = "Player List Updated",
+                Content = "Player list refreshed!",
+                Duration = 2
+            })
+        end
+    })
+
+    -- Island Teleport Section
+    teleportTab:AddSection("Islands")
+    
+    local islandTeleportDropdown = teleportTab:AddDropdown("TeleportIsland", {
+        Title = "Teleport To Island",
+        Description = "Select an island to teleport to",
+        Values = {
+            "Select Island...",
+            "Kohana",
+            "Kohana Volcano",
+            "Tropical Grove",
+            "Sisyphus Statue",
+            "Weather Machine",
+            "Treasure Room",
+            "Esoteric Island",
+            "Crater Island",
+            "Coral Reefs",
+            "Stingray Shores",
+            "Ocean",
+            "Esoteric Depths"
+        },
+        Multi = false,
+        Default = 1,
+        Callback = function(Value)
+            if Value == "Select Island..." then
+                return
+            end
+            
+            local player = game.Players.LocalPlayer
+            if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+                return
+            end
+            local locations = {
+                ["Kohana"] = CFrame.new(-666.27771, 0.946365654, 719.934326, 0, 0, -1, 0, 1, 0, 1, 0, 0),
+                ["Kohana Volcano"] = CFrame.new(-484.600891, 20.750059, 227.483047, -0.750139, -0.000000, -0.661280, -0.000000, 1.000000, -0.000000, 0.661280, 0.000000, -0.750139),
+                ["Tropical Grove"] = CFrame.new(-2063.47021, 3.99908447, 3643.12622, -0.0675487518, 0, 0.99771595, 0, 1, 0, -0.99771595, 0, -0.0675487518),
+                ["Sisyphus Statue"] = CFrame.new(-3729.36743, -100.94648, -948.056519, 0.881157279, -0.202546716, 0.427243084, 9.03755426e-06, 0.90360719, 0.428362042, -0.472823232, -0.377450496, 0.796221912),
+                ["Weather Machine"] = CFrame.new(-1492.293091, 3.500000, 1903.266235, 0.037160, -0.000000, -0.999309, -0.000000, 1.000000, -0.000000, 0.999309, 0.000000, 0.037160),
+                ["Treasure Room"] = CFrame.new(-3599.518799, -315.629181, -1418.691650, 0.999777, -0.000000, -0.021134, 0.000000, 1.000000, -0.000000, 0.021134, 0.000000, 0.999777),
+                ["Esoteric Island"] = CFrame.new(2061.76196, 35.6500702, 1380.32703, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                ["Crater Island"] = CFrame.new(976.711548, -5.2534189, 4886.73242, 0.173624337, -0, -0.984811902, 0, 1, -0, 0.984811902, 0, 0.173624337),
+                ["Coral Reefs"] = CFrame.new(-3120.34644, 16.9453125, 2181.97144, 0.707134247, -0, -0.707079291, 0, 1, -0, 0.707079291, 0, 0.707134247),
+                ["Stingray Shores"] = CFrame.new(21.25, 7.74999809, 2883.3125, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                ["Ocean"] = CFrame.new(1609.45593, 7.993308318, 3279.21533, 0.499959469, 0, 0.866048813, 0, 1, 0, -0.866048813, 0, 0.499959469),
+                ["Esoteric Depths"] = CFrame.new(3054.9707, -1288.35474, 1483.97412, 0.90629667, 0, 0.422642082, 0, 1, 0, -0.422642082, 0, 0.90629667)
+            }
+            if locations[Value] then
+                player.Character.HumanoidRootPart.CFrame = locations[Value]
+                Fluent:Notify({
+                    Title = "Teleported",
+                    Content = "Teleported to " .. Value,
+                    Duration = 3
+                })
+                
+                -- Reset to default after teleport
+                spawn(function()
+                    wait(0.1)
+                    Options.TeleportIsland:SetValue("Select Island...")
+                end)
+            end
+        end
+    })
+
+    -- NPC Teleport Section  
+    teleportTab:AddSection("NPCs")
+    
+    local npcTeleportDropdown = teleportTab:AddDropdown("TeleportNPC", {
+        Title = "Teleport To NPC",
+        Description = "Select an NPC to teleport to",
+        Values = {
+            "Select NPC...",
+            "Alex - Sell Fish",
+            "Billy Bob - Rod Skin",
+            "Boat Expert - Boat Shop",
+            "Joe - Rod Shop",
+            "Scientist - Lucky Potion",
+            "Scoot - Boat Shop",
+            "Seth - Bait Shop",
+            "Silly Fisherman"
+        },
+        Multi = false,
+        Default = 1,
+        Callback = function(Value)
+            if Value == "Select NPC..." then
+                return
+            end
+            
+            local player = game.Players.LocalPlayer
+            if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+                return
+            end
+            
+            local npcLocations = {
+                ["Alex - Sell Fish"] = CFrame.new(-31.029264, 4.500001, 2890.095947, -0.997203, 0.000000, 0.074746, 0.000000, 1.000000, -0.000000, -0.074746, -0.000000, -0.997203),
+                ["Billy Bob - Rod Skin"] = CFrame.new(64.524055, 29.000002, 2950.265869, 0.012369, -0.000000, -0.999923, -0.000000, 1.000000, -0.000000, 0.999923, 0.000000, 0.012369),
+                ["Boat Expert - Boat Shop"] = CFrame.new(22.869276, 4.045772, 2810.912354, 0.999303, -0.000000, 0.037339, 0.000000, 1.000000, 0.000000, -0.037339, -0.000000, 0.999303),
+                ["Joe - Rod Shop"] = CFrame.new(114.716515, 4.750001, 2876.207275, -0.999499, -0.000000, 0.031645, -0.000000, 1.000000, 0.000000, -0.031645, 0.000000, -0.999499),
+                ["Scientist - Lucky Potion"] = CFrame.new(-7.974049, 4.500001, 2844.862305, -0.999788, -0.000000, -0.020568, -0.000000, 1.000000, 0.000000, 0.020568, 0.000000, -0.999788),
+                ["Scoot - Boat Shop"] = CFrame.new(-75.6783218, 4.74903107, 2867.15674, 0.305231869, -2.02933879e-05, 0.952278197, 0.000808718964, 0.999999642, -0.000237909742, -0.952277839, 0.000842742971, 0.30523181),
+                ["Seth - Bait Shop"] = CFrame.new(71.385483, 4.561694, 2888.099121, -0.996477, -0.000000, -0.083868, -0.000000, 1.000000, -0.000000, 0.083868, -0.000000, -0.996477),
+                ["Silly Fisherman"] = CFrame.new(90.683128, 27.244699, 3005.096436, -0.739958, 0.000000, -0.672653, 0.000000, 1.000000, 0.000000, 0.672653, 0.000000, -0.739958)
+            }
+            
+            if npcLocations[Value] then
+                player.Character.HumanoidRootPart.CFrame = npcLocations[Value]
+                Fluent:Notify({
+                    Title = "Teleported",
+                    Content = "Teleported to " .. Value,
+                    Duration = 3
+                })
+                
+                -- Reset to default after teleport
+                spawn(function()
+                    wait(0.1)
+                    Options.TeleportNPC:SetValue("Select NPC...")
+                end)
+            end
+        end
+    })
+ teleportTab:AddSection("Events")
+    
+    local detectedEvents = {}
+    local selectedEvent = nil
+    local eventCoordinates = {
+        ["Shark Hunt"] = {
+            Vector3.new(1.64999, 5, 2095.72),
+            Vector3.new(1369.94, 5, 930.125),
+            Vector3.new(-1585.5, 5, 1242.87),
+            Vector3.new(-1896.8, 5, 2634.37)
+        },
+        ["Ghost Shark Hunt"] = {
+            Vector3.new(489.558, 5, 25.4060),
+            Vector3.new(1976.51, 5, 2915.93),
+            Vector3.new(-1358.2, 5, 4100.55),
+            Vector3.new(627.859, 5, 3798.08)
+        },
+        ["Sparkling Cove"] = {
+            Vector3.new(195.378, 5, 2976.27)
+        },
+        ["Worm Hunt"] = {
+            Vector3.new(1591.55, 5, -105.92),
+            Vector3.new(-2450.6, 5, 139.731),
+            Vector3.new(-267.47, 5, 5188.53)
+        },
+        ["Admin - Shocked"] = {
+            Vector3.new(383, 5, 2452)
+        },
+        ["Admin - Black Hole"] = {
+            Vector3.new(883, 5, 2542)
+        },
+        ["Admin - Ghost Worm"] = {
+            Vector3.new(-327, 5, 2422)
+        },
+        ["Admin - Meteor Rain"] = {
+            Vector3.new(383, 5, 2452)
+        },
+        ["Storm"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
+        ["Snow"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
+        ["Wind"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)},
+        ["Cloudy"] = {Vector3.new(-1492.293091, 3.500000, 1903.266235)}
+    }
+
+    local function detectActiveEvents()
+        local activeEvents = {}
+        
+        local success, error = pcall(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local workspaceProps = workspace:FindFirstChild("Props")
+            
+            if workspaceProps and workspaceProps:FindFirstChild("Shark Hunt") then
+                table.insert(activeEvents, "Shark Hunt 🟢")
+            end
+            if workspaceProps and workspaceProps:FindFirstChild("Ghost Shark Hunt") then
+                table.insert(activeEvents, "Ghost Shark Hunt 🟢")
+            end
+            
+            local lighting = game:GetService("Lighting")
+            if lighting:FindFirstChild("SparklingCoveEffect") or 
+               (lighting.Brightness > 1.5 and lighting.ColorShift_Top.R > 0.8 and lighting.ColorShift_Top.G > 0.8) then
+                table.insert(activeEvents, "Sparkling Cove 🟢")
+            end
+            
+            local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+            local wormHuntActive = false
+            if PlayerGui then
+                for _, gui in pairs(PlayerGui:GetDescendants()) do
+                    if gui:IsA("TextLabel") and gui.Text then
+                        if string.match(gui.Text, "Worm Hunt") and 
+                           (string.match(gui.Text, "%d+:%d+") or string.match(gui.Text, "ACTIVE")) then
+                            wormHuntActive = true
+                            break
+                        end
+                    end
+                end
+            end
+            
+            if wormHuntActive or (workspaceProps and workspaceProps:FindFirstChild("Worm Hunt")) then
+                table.insert(activeEvents, "Worm Hunt 🟢")
+            end
+            
+            local adminAreas = workspace:FindFirstChild("AdminAreas") or workspace:FindFirstChild("AdminEvents")
+            if adminAreas then
+                if adminAreas:FindFirstChild("Shocked") or adminAreas:FindFirstChild("ShockedArea") then
+                    table.insert(activeEvents, "Admin - Shocked 🟢")
+                end
+                if adminAreas:FindFirstChild("BlackHole") or adminAreas:FindFirstChild("Black Hole") then
+                    table.insert(activeEvents, "Admin - Black Hole 🟢")
+                end
+                if adminAreas:FindFirstChild("GhostWorm") or adminAreas:FindFirstChild("Ghost Worm") then
+                    table.insert(activeEvents, "Admin - Ghost Worm 🟢")
+                end
+                if adminAreas:FindFirstChild("MeteorRain") or adminAreas:FindFirstChild("Meteor Rain") then
+                    table.insert(activeEvents, "Admin - Meteor Rain 🟢")
+                end
+            end
+            
+            if lighting.Brightness >= 3.5 and lighting.Ambient.B >= 0.6 and lighting.Ambient.R < 0.4 then
+                table.insert(activeEvents, "Storm 🟢")
+            end
+            if lighting.ColorShift_Top.R <= 0.03 and lighting.ColorShift_Top.G <= 0.03 and lighting.ColorShift_Top.B <= 0.03 and
+               lighting.Brightness < 1 then
+                table.insert(activeEvents, "Snow 🟢")
+            end
+            local atmosphere = lighting:FindFirstChild("Atmosphere")
+            if atmosphere and atmosphere.Density >= 1.0 and lighting.Brightness > 1.2 then
+                table.insert(activeEvents, "Wind 🟢")
+            end
+            if lighting.Brightness <= 0.4 and 
+               lighting.ColorShift_Top.R >= 0.8 and lighting.ColorShift_Top.G >= 0.8 and lighting.ColorShift_Top.B >= 0.8 then
+                table.insert(activeEvents, "Cloudy 🟢")
+            end
+        end)
+        
+        if success then
+            detectedEvents = activeEvents
+            if #detectedEvents == 0 then
+                detectedEvents = {"No active events"}
+            end
+        else
+            warn("Error detecting events: " .. tostring(error))
+            detectedEvents = {"Error detecting events"}
+        end
+        
+        return detectedEvents
+    end
+
+    local function getEventCoordinates(selection)
+        local cleanName = string.gsub(selection, " 🟢", "")
+        cleanName = string.gsub(cleanName, "^%s*(.-)%s*$", "%1") 
+        if eventCoordinates[cleanName] then
+            local coords = eventCoordinates[cleanName]
+            
+            if #coords > 1 then
+                local selectedCoord = coords[math.random(1, #coords)]
+                return selectedCoord
+            else
+                return coords[1]
+            end
+        end
+        return nil
+    end
+
+    detectActiveEvents()
+    local eventDropdown = teleportTab:AddDropdown("EventTeleport", {
+        Title = "Active Events",
+        Description = "Select an active event to teleport to",
+        Values = #detectedEvents > 0 and (function()
+            local options = {"Select Event..."}
+            for _, event in ipairs(detectedEvents) do
+                table.insert(options, event)
+            end
+            return options
+        end)() or {"Select Event...", "No events detected"},
+        Multi = false,
+        Default = 1,
+        Callback = function(Value)
+            if Value == "Select Event..." or Value == "No events detected" then
+                return
+            end
+            
+            selectedEvent = Value
+            
+            -- Auto teleport when selected
+            local player = game.Players.LocalPlayer
+            if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+                return
+            end
+            
+            local targetPos = getEventCoordinates(selectedEvent)
+            if targetPos then
+                local offsetPos = targetPos + Vector3.new(
+                    math.random(-5, 5),
+                    0,
+                    math.random(-5, 5)
+                )
+                player.Character.HumanoidRootPart.CFrame = CFrame.new(offsetPos)
+                
+                if Options.FlyToggle then
+                    Options.FlyToggle:SetValue(true)
+                end
+                
+                Fluent:Notify({
+                    Title = "Teleported to Event",
+                    Content = "Teleported to " .. selectedEvent,
+                    Duration = 3
+                })
+                
+                -- Reset to default after teleport
+                spawn(function()
+                    wait(0.1)
+                    Options.EventTeleport:SetValue("Select Event...")
+                end)
+            else
+                Fluent:Notify({
+                    Title = "Error",
+                    Content = "Could not find coordinates for this event",
+                    Duration = 3
+                })
+            end
+        end
+    })
+
+    local refreshEventsButton = teleportTab:AddButton({
+        Title = "Refresh Events",
+        Description = "Scan for currently active events",
+        Callback = function()
+            detectActiveEvents()
+            if Options.EventTeleport then
+                local options = {}
+                for _, event in ipairs(detectedEvents) do
+                    table.insert(options, event)
+                end
+                Options.EventTeleport:SetValues(options)
+                selectedEvent = nil
+                
+                local activeCount = 0
+                for _, event in ipairs(detectedEvents) do
+                    if string.find(event, "🟢") then
+                        activeCount = activeCount + 1
+                    end
+                end
+                
+                Fluent:Notify({
+                    Title = "Events Refreshed",
+                    Content = activeCount .. " active events found",
+                    Duration = 3
+                })
+            end
+        end
+    })
+
+    local teleportEventButton = teleportTab:AddButton({
+        Title = "Teleport To Event",
+        Description = "Teleport to the selected event location",
+        Callback = function()
+            if not selectedEvent or selectedEvent == "No active events" or selectedEvent == "Error detecting events" then
+                Fluent:Notify({
+                    Title = "No Event Selected",
+                    Content = "Please select an active event first!",
+                    Duration = 3
+                })
+                return
+            end
+            
+            local player = game.Players.LocalPlayer
+            if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+                return
+            end
+            
+            local targetPos = getEventCoordinates(selectedEvent)
+            if targetPos then
+                local offsetPos = targetPos + Vector3.new(
+                    math.random(-5, 5),
+                    0,
+                    math.random(-5, 5)
+                )
+                player.Character.HumanoidRootPart.CFrame = CFrame.new(offsetPos)
+                
+                if Options.FlyToggle then
+                    Options.FlyToggle:SetValue(true)
+                end
+                
+                Fluent:Notify({
+                    Title = "Teleported to Event",
+                    Content = "Teleported to " .. selectedEvent,
+                    Duration = 3
+                })
+            else
+                Fluent:Notify({
+                    Title = "Error",
+                    Content = "Could not find coordinates for this event",
+                    Duration = 3
+                })
+            end
+        end
+    })
+end
+
+do
+    local buyTab = Tabs.Buy
+    
+    -- Buy Weather Section
+    local weatherDropdown = buyTab:AddDropdown("BuyWeather", {
+        Title = "Buy Weather",
+        Description = "Purchase weather events with coins",
+        Values = {
+            "Select Weather...",
+            "Cloudy (20,000)",
+            "Wind (10,000)",
+            "Snow (15,000)",
+            "Storm (35,000)",
+            "Shark Hunt (300,000)"
+        },
+        Multi = false,
+        Default = 1,
+        Callback = function(Value)
+            if Value == "Select Weather..." then
+                return
+            end
+            
+            local weatherName
+            if Value:find("Cloudy") then
+                weatherName = "Cloudy"
+            elseif Value:find("Wind") then
+                weatherName = "Wind"
+            elseif Value:find("Snow") then
+                weatherName = "Snow"
+            elseif Value:find("Storm") then
+                weatherName = "Storm"
+            elseif Value:find("Shark Hunt") then
+                weatherName = "Shark Hunt"
+            end
+            
+            if weatherName then
+                local success, error = pcall(function()
+                    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                    local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+                    if netFolder and netFolder:FindFirstChild("net") then
+                        local net = netFolder.net
+                        local buyWeather = net:FindFirstChild("RF/PurchaseWeatherEvent")
+                        if buyWeather then
+                            buyWeather:InvokeServer(weatherName)
+                            Fluent:Notify({
+                                Title = "Weather Purchased",
+                                Content = "Purchased " .. weatherName .. "!",
+                                Duration = 3
+                            })
+                        else
+                            warn("PurchaseWeatherEvent not found!")
+                            Fluent:Notify({
+                                Title = "Error",
+                                Content = "Weather purchase failed!",
+                                Duration = 3
+                            })
+                        end
+                    end
+                end)
+                
+                if not success then
+                    warn("Weather purchase error: " .. tostring(error))
+                end
+                
+                -- Reset to default after purchase
+                spawn(function()
+                    wait(0.1)
+                    Options.BuyWeather:SetValue("Select Weather...")
+                end)
+            end
+        end
+    })
+    
+    -- Buy Rod Section
+    buyTab:AddSection("Fishing Equipment")
+    
+    local rodDropdown = buyTab:AddDropdown("BuyRod", {
+        Title = "Buy Fishing Rod",
+        Description = "Purchase fishing rods to improve your fishing",
+        Values = {
+            "Select Rod...",
+            "Lucky Rod - 350",
+            "Carbon Rod - 900",
+            "Grass Rod - 1,500",
+            "Damascus Rod - 3,000",
+            "Ice Rod - 5,000",
+            "Lucky Rod Pro - 15,000",
+            "Midnight Rod - 50,000",
+            "Steampunk Rod - 215,000",
+            "Chrome Rod - 437,000",
+            "Astral Rod - 1,000,000"
+        },
+        Multi = false,
+        Default = 1,
+        Callback = function(Value)
+            if Value == "Select Rod..." then
+                return
+            end
+            
+            local rodId
+            local rodName = Value
+            
+            if Value:find("Lucky Rod - 350") then
+                rodId = 79
+            elseif Value:find("Carbon Rod") then
+                rodId = 76
+            elseif Value:find("Grass Rod") then
+                rodId = 85
+            elseif Value:find("Damascus Rod") then
+                rodId = 77
+            elseif Value:find("Ice Rod") then
+                rodId = 78
+            elseif Value:find("Lucky Rod Pro") then
+                rodId = 4
+            elseif Value:find("Midnight Rod") then
+                rodId = 80
+            elseif Value:find("Steampunk Rod") then
+                rodId = 6
+            elseif Value:find("Chrome Rod") then
+                rodId = 7
+            elseif Value:find("Astral Rod") then
+                rodId = 5
+            end
+            
+            if rodId then
+                local success, error = pcall(function()
+                    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                    local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+                    if netFolder and netFolder:FindFirstChild("net") then
+                        local net = netFolder.net
+                        local buyRod = net:FindFirstChild("RF/PurchaseFishingRod")
+                        if buyRod then
+                            buyRod:InvokeServer(rodId)
+                            Fluent:Notify({
+                                Title = "Rod Purchased",
+                                Content = "Purchased " .. rodName .. "!",
+                                Duration = 3
+                            })
+                        else
+                            warn("PurchaseFishingRod not found!")
+                            Fluent:Notify({
+                                Title = "Error",
+                                Content = "Rod purchase failed!",
+                                Duration = 3
+                            })
+                        end
+                    end
+                end)
+                
+                if not success then
+                    warn("Rod purchase error: " .. tostring(error))
+                end
+                
+                -- Reset to default after purchase
+                spawn(function()
+                    wait(0.1)
+                    Options.BuyRod:SetValue("Select Rod...")
+                end)
+            end
+        end
+    })
+    
+    -- Buy Bait Section
+    local baitDropdown = buyTab:AddDropdown("BuyBait", {
+        Title = "Buy Bait",
+        Description = "Purchase different types of bait for better catches",
+        Values = {
+            "Select Bait...",
+            "Topwater Bait - 100",
+            "Lucky Bait - 1,000",
+            "Midnight Bait - 3,000",
+            "Chroma Bait - 290,000",
+            "Dark Matter Bait - 630,000",
+            "Corrupt Bait - 1,150,000"
+        },
+        Multi = false,
+        Default = 1,
+        Callback = function(Value)
+            if Value == "Select Bait..." then
+                return
+            end
+            
+            local baitId
+            local baitName = Value
+            
+            if Value:find("Topwater Bait") then
+                baitId = 10
+            elseif Value:find("Lucky Bait") then
+                baitId = 2
+            elseif Value:find("Midnight Bait") then
+                baitId = 3
+            elseif Value:find("Chroma Bait") then
+                baitId = 6
+            elseif Value:find("Dark Matter Bait") then
+                baitId = 8
+            elseif Value:find("Corrupt Bait") then
+                baitId = 15
+            end
+            
+            if baitId then
+                local success, error = pcall(function()
+                    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                    local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+                    if netFolder and netFolder:FindFirstChild("net") then
+                        local net = netFolder.net
+                        local buyBait = net:FindFirstChild("RF/PurchaseBait")
+                        if buyBait then
+                            buyBait:InvokeServer(baitId)
+                            Fluent:Notify({
+                                Title = "Bait Purchased",
+                                Content = "Purchased " .. baitName .. "!",
+                                Duration = 3
+                            })
+                        else
+                            warn("PurchaseBait not found!")
+                            Fluent:Notify({
+                                Title = "Error", 
+                                Content = "Bait purchase failed!",
+                                Duration = 3
+                            })
+                        end
+                    end
+                end)
+                
+                if not success then
+                    warn("Bait purchase error: " .. tostring(error))
+                end
+                
+                -- Reset to default after purchase
+                spawn(function()
+                    wait(0.1)
+                    Options.BuyBait:SetValue("Select Bait...")
+                end)
+            end
+        end
+    })
+    
+    -- Quick Purchase Buttons Section
+    buyTab:AddSection("Quick Purchase")
+    
+    local quickBuyButtons = {
+        {
+            title = "Buy Lucky Rod Pro",
+            description = "Quick purchase Lucky Rod Pro (15,000)",
+            id = 4,
+            type = "rod"
+        },
+        {
+            title = "Buy Lucky Bait x10",
+            description = "Quick purchase 10x Lucky Bait",
+            id = 2,
+            type = "bait"
+        },
+        {
+            title = "Buy Storm Weather",
+            description = "Quick purchase Storm weather (35,000)",
+            name = "Storm",
+            type = "weather"
+        }
+    }
+    
+    for _, item in pairs(quickBuyButtons) do
+        buyTab:AddButton({
+            Title = item.title,
+            Description = item.description,
+            Callback = function()
+                local success, error = pcall(function()
+                    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                    local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+                    if netFolder and netFolder:FindFirstChild("net") then
+                        local net = netFolder.net
+                        
+                        if item.type == "rod" then
+                            local buyRod = net:FindFirstChild("RF/PurchaseFishingRod")
+                            if buyRod then
+                                buyRod:InvokeServer(item.id)
+                                Fluent:Notify({
+                                    Title = "Quick Purchase",
+                                    Content = item.title .. " purchased!",
+                                    Duration = 3
+                                })
+                            end
+                        elseif item.type == "bait" then
+                            local buyBait = net:FindFirstChild("RF/PurchaseBait")
+                            if buyBait then
+                                -- Buy 10x bait
+                                for i = 1, 10 do
+                                    buyBait:InvokeServer(item.id)
+                                    wait(0.1)
+                                end
+                                Fluent:Notify({
+                                    Title = "Quick Purchase",
+                                    Content = "10x Lucky Bait purchased!",
+                                    Duration = 3
+                                })
+                            end
+                        elseif item.type == "weather" then
+                            local buyWeather = net:FindFirstChild("RF/PurchaseWeatherEvent")
+                            if buyWeather then
+                                buyWeather:InvokeServer(item.name)
+                                Fluent:Notify({
+                                    Title = "Quick Purchase",
+                                    Content = item.name .. " weather purchased!",
+                                    Duration = 3
+                                })
+                            end
+                        end
+                    end
+                end)
+                
+                if not success then
+                    warn("Quick purchase error: " .. tostring(error))
+                    Fluent:Notify({
+                        Title = "Purchase Failed",
+                        Content = "Quick purchase failed!",
+                        Duration = 3
+                    })
+                end
+            end
+        })
+    end
+end
+do
+    local settingTab = Tabs.Settings
+    
+    -- FPS Boost Section
+    settingTab:AddSection("Performance")
+    
+    local fpsBoostButton = settingTab:AddButton({
+        Title = "FPS Boost",
+        Description = "Boost performance by disabling graphics effects",
+        Callback = function()
+            local success, error = pcall(function()
+                game.Lighting.GlobalShadows = false
+                settings().Rendering.QualityLevel = Enum.QualityLevel.Level03
+                
+                for _, v in pairs(workspace:GetDescendants()) do
+                    if v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                        v.Enabled = false
+                    end
+                end
+                
+                for _, effect in pairs(game.Lighting:GetChildren()) do
+                    if effect:IsA("BloomEffect") or effect:IsA("SunRaysEffect") 
+                    or effect:IsA("DepthOfFieldEffect") or effect:IsA("ColorCorrectionEffect") then
+                        effect.Enabled = false
+                    end
+                end
+                
+                Fluent:Notify({
+                    Title = "FPS Boost Applied",
+                    Content = "Graphics optimized for better performance",
+                    Duration = 3
+                })
+            end)
+            
+            if not success then
+                warn("FPS Boost error: " .. tostring(error))
+            end
+        end
+    })
+    
+    local resetFpsButton = settingTab:AddButton({
+        Title = "Reset FPS Boost",
+        Description = "Restore original graphics settings",
+        Callback = function()
+            local success, error = pcall(function()
+                game.Lighting.GlobalShadows = true
+                settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+                
+                for _, v in pairs(workspace:GetDescendants()) do
+                    if v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                        v.Enabled = true
+                    end
+                end
+                
+                for _, effect in pairs(game.Lighting:GetChildren()) do
+                    if effect:IsA("BloomEffect") or effect:IsA("SunRaysEffect") 
+                    or effect:IsA("DepthOfFieldEffect") or effect:IsA("ColorCorrectionEffect") then
+                        effect.Enabled = true
+                    end
+                end
+                
+                Fluent:Notify({
+                    Title = "Graphics Restored",
+                    Content = "Original graphics settings restored",
+                    Duration = 3
+                })
+            end)
+            
+            if not success then
+                warn("Reset FPS Boost error: " .. tostring(error))
+            end
+        end
+    })
+    
+    -- Server Management Section
+    settingTab:AddSection("Server Management")
+    
+    local rejoinButton = settingTab:AddButton({
+        Title = "Rejoin Server",
+        Description = "Rejoin the current server",
+        Callback = function()
+            local player = game.Players.LocalPlayer
+            local TeleportService = game:GetService("TeleportService")
+            
+            local success, err = pcall(function()
+                TeleportService:Teleport(game.PlaceId, player)
+            end)
+            
+            if not success then
+                warn("Rejoin failed: " .. tostring(err))
+                Fluent:Notify({
+                    Title = "Rejoin Failed",
+                    Content = "Could not rejoin server",
+                    Duration = 3
+                })
+            else
+                Fluent:Notify({
+                    Title = "Rejoining...",
+                    Content = "Rejoining current server",
+                    Duration = 2
+                })
+            end
+        end
+    })
+    
+    -- Auto Reconnect System
+    local isAutoReconnectActive = false
+    local reconnectAttempts = 0
+    local maxReconnectAttempts = 3
+    
+    -- Store server info immediately when script loads
+    local reconnectData = {
+        PlaceId = game.PlaceId,
+        JobId = game.JobId or "",
+        ServerInfo = game.JobId and game.JobId ~= "" and "Same Server" or "Random Server"
+    }
+    
+    -- Function to attempt reconnection
+    local function attemptReconnect()
+        if not isAutoReconnectActive then return end
+        reconnectAttempts = reconnectAttempts + 1
+        local TeleportService = game:GetService("TeleportService")
+        
+        if reconnectAttempts <= 2 and reconnectData.JobId ~= "" then
+            local success = pcall(function()
+                TeleportService:TeleportToPlaceInstance(
+                    reconnectData.PlaceId,
+                    reconnectData.JobId,
+                    game.Players.LocalPlayer
+                )
+            end)
+            if success then
+                return true
+            end
+        end
+        
+        if reconnectAttempts >= 2 or reconnectData.JobId == "" then
+            local success = pcall(function()
+                TeleportService:Teleport(reconnectData.PlaceId, game.Players.LocalPlayer)
+            end)
+            if success then
+                return true
+            end
+        end
+        
+        if reconnectAttempts >= maxReconnectAttempts then
+            reconnectAttempts = 0
+            wait(10) 
+        end
+        return false
+    end
+    
+    local autoReconnectToggle = settingTab:AddToggle("AutoReconnect", {
+        Title = "Auto Reconnect",
+        Description = "Automatically reconnect when disconnected",
+        Default = false,
+        Callback = function(Value)
+            isAutoReconnectActive = Value
+            reconnectAttempts = 0
+            
+            if Value then
+                local serverType = reconnectData.JobId ~= "" and "Same Server First" or "Random Server"
+                Fluent:Notify({
+                    Title = "Auto Reconnect Enabled",
+                    Content = "Will reconnect to: " .. serverType,
+                    Duration = 3
+                })
+            else
+                Fluent:Notify({
+                    Title = "Auto Reconnect Disabled",
+                    Content = "Auto reconnect turned off",
+                    Duration = 3
+                })
+            end
+        end
+    })
+    
+    -- Auto Reconnect Monitoring System
+    spawn(function()
+        local failCount = 0
+        while wait(2) do
+            if isAutoReconnectActive then
+                local success = pcall(function()
+                    local _ = game.Players.LocalPlayer.Character
+                    local _ = game.Players.LocalPlayer.UserId
+                    local _ = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
+                end)
+                
+                if not success then
+                    failCount = failCount + 1
+                    if failCount >= 3 then
+                        for i = 1, 3 do
+                            wait(3)
+                            if attemptReconnect() then
+                                break
+                            end
+                            wait(2)
+                        end
+                        failCount = 0
+                    end
+                else
+                    failCount = 0
+                end
+            end
+        end
+    end)
+    
+    local function onErrorMessage()
+        if not isAutoReconnectActive then return end
+        wait(2) 
+        spawn(function()
+            for i = 1, 3 do
+                if attemptReconnect() then
+                    break
+                end
+                wait(3)
+            end
+        end)
+    end
+    
+    -- Error Message Detection
+    pcall(function()
+        game:GetService("GuiService").ErrorMessageChanged:Connect(function(msg)
+            if isAutoReconnectActive and msg and msg ~= "" then
+                if string.find(string.lower(msg), "disconnected") or 
+                   string.find(string.lower(msg), "connection") or
+                   string.find(string.lower(msg), "lost") or
+                   string.find(string.lower(msg), "kick") then
+                    onErrorMessage()
+                end
+            end
+        end)
+    end)
+    
+    -- Error Prompt Detection
+    pcall(function()
+        game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
+            if not isAutoReconnectActive then return end
+            wait(0.5)
+            if child.Name == "ErrorPrompt" then
+                local reconnectButton = nil
+                for _, desc in ipairs(child:GetDescendants()) do
+                    if desc:IsA("TextButton") or desc:IsA("ImageButton") then
+                        local text = desc.Text or ""
+                        if string.find(string.lower(text), "reconnect") or 
+                           string.find(string.lower(text), "retry") or
+                           string.find(string.lower(text), "join") then
+                            reconnectButton = desc
+                            break
+                        end
+                    end
+                end
+                if reconnectButton then
+                    pcall(function()
+                        for i = 1, 3 do
+                            firesignal(reconnectButton.MouseButton1Click)
+                            firesignal(reconnectButton.Activated)
+                            wait(0.5)
+                        end
+                    end)
+                else
+                    wait(2)
+                    attemptReconnect()
+                end
+            end
+        end)
+    end)
+    
+    -- Teleport State Monitoring
+    game.Players.LocalPlayer.OnTeleport:Connect(function(state)
+        if not isAutoReconnectActive then return end
+        if state == Enum.TeleportState.Failed then
+            wait(3)
+            attemptReconnect()
+        end
+    end)
+    
+    -- Player Removing Detection
+    game.Players.PlayerRemoving:Connect(function(player)
+        if player == game.Players.LocalPlayer and isAutoReconnectActive then
+            attemptReconnect()
+        end
+    end)
+    
+    -- Heartbeat Timeout Detection
+    spawn(function()
+        local RunService = game:GetService("RunService")
+        local lastHeartbeat = tick()
+        local timeout = 15 
+        
+        RunService.Heartbeat:Connect(function()
+            lastHeartbeat = tick()
+        end)
+        
+        while wait(5) do
+            if isAutoReconnectActive then
+                local timeSinceHeartbeat = tick() - lastHeartbeat
+                if timeSinceHeartbeat > timeout then
+                    lastHeartbeat = tick()
+                    spawn(function()
+                        attemptReconnect()
+                    end)
+                    wait(20) 
+                end
+            end
+        end
+    end)
+    
+    -- Global Functions for External Use
+    _G.ReconnectSameServer = function()
+        if reconnectData.JobId ~= "" then
+            game:GetService("TeleportService"):TeleportToPlaceInstance(
+                reconnectData.PlaceId,
+                reconnectData.JobId,
+                game.Players.LocalPlayer
+            )
+        end
+    end
+    
+    _G.ReconnectRandomServer = function()
+        game:GetService("TeleportService"):Teleport(
+            reconnectData.PlaceId,
+            game.Players.LocalPlayer
+        )
+    end
+    
+    -- Additional Settings Section
+    settingTab:AddSection("Server Information")
+    
+    -- Server Info Paragraph (auto-display)
+    local serverType = reconnectData.JobId ~= "" and "Private/VIP Server" or "Public Server"
+    local playerCount = #game.Players:GetPlayers()
+    
+    local serverInfoParagraph = settingTab:AddParagraph({
+        Title = "Current Server Details",
+        Content = string.format("Server Type: %s\nPlayers Online: %d\nPlace ID: %d\nJob ID: %s", 
+            serverType, 
+            playerCount, 
+            game.PlaceId,
+            reconnectData.JobId ~= "" and reconnectData.JobId or "N/A"
+        )
+    })
+    
+    -- Update player count periodically
+    spawn(function()
+        while wait(5) do
+            local currentPlayers = #game.Players:GetPlayers()
+            if currentPlayers ~= playerCount then
+                playerCount = currentPlayers
+                serverInfoParagraph:Set({
+                    Title = "Current Server Details",
+                    Content = string.format("Server Type: %s\nPlayers Online: %d\nPlace ID: %d\nJob ID: %s", 
+                        serverType, 
+                        playerCount, 
+                        game.PlaceId,
+                        reconnectData.JobId ~= "" and reconnectData.JobId or "N/A"
+                    )
+                })
+            end
+        end
+    end)
+    
+    settingTab:AddSection("Configuration")
+    
+    local configSaveButton = settingTab:AddButton({
+        Title = "Save Configuration",
+        Description = "Manually save current settings",
+        Callback = function()
+            local success, message = AutoConfig:ManualSave()
+            if success then
+                Fluent:Notify({
+                    Title = "Configuration Saved",
+                    Content = "Settings saved successfully",
+                    Duration = 3
+                })
+            else
+                Fluent:Notify({
+                    Title = "Save Failed",
+                    Content = "Could not save configuration",
+                    Duration = 3
+                })
+            end
+        end
+    })
+end
+-- NOTE: Add this line to Part 1 in the Tabs section:
+-- Webhook = Window:AddTab({ Title = "Webhook", Icon = "bell-ring" }),
+
+-- Webhook Tab
+do
+    local webhookTab = Tabs.Webhook
+    
+    -- Webhook Variables
+    local webhookURL = ""
+    local isWebhookActive = false
+    local lastInventoryState = {}
+    local inventoryConnection = nil
+    local httpRetryCount = 0
+    local maxHttpRetries = 3
+    
+    -- Specific Fish Enabled (Only these will be tracked)
+    local specificFishEnabled = {
+        -- Secret Fish
+        [156] = false, -- Giant Squid
+        [136] = false, -- Frostborn Shark
+        -- Mythic Fish  
+        [75] = false,  -- Dotted Stingray
+        [15] = false,  -- Abyss Seahorse
+        [21] = false,  -- Hawks Turtle
+        [52] = false,  -- Hammerhead Shark
+        [54] = false,  -- Manta Ray
+        [35] = false,  -- Prismy Seahorse
+        [34] = false,  -- Loggerhead Turtle
+        [47] = false,  -- Blueflame Ray
+    }
+    
+    -- Webhook URL Input
+    local webhookInput = webhookTab:AddInput("WebhookURL", {
+        Title = "Discord Webhook URL",
+        Description = "Paste your Discord webhook URL here",
+        Default = "",
+        Placeholder = "https://discord.com/api/webhooks/...",
+        Numeric = false,
+        Finished = false,
+        Callback = function(Value)
+            webhookURL = Value
+            httpRetryCount = 0
+            
+            if Value ~= "" then
+                Fluent:Notify({
+                    Title = "Webhook URL Set",
+                    Content = "Webhook URL configured successfully",
+                    Duration = 3
+                })
+            end
+        end
+    })
+    
+    -- Fish Selection Section
+    webhookTab:AddSection("Fish Selection")
+    
+    local fishDropdown = webhookTab:AddDropdown("FishSelection", {
+        Title = "Select Fish to Track",
+        Description = "Choose which fish to send to webhook",
+        Values = {
+            -- Secret Fish
+            "Giant Squid (Secret)",
+            "Frostborn Shark (Secret)",
+            -- Mythic Fish
+            "Dotted Stingray (Mythic)",
+            "Abyss Seahorse (Mythic)", 
+            "Hawks Turtle (Mythic)",
+            "Hammerhead Shark (Mythic)",
+            "Manta Ray (Mythic)",
+            "Prismy Seahorse (Mythic)",
+            "Loggerhead Turtle (Mythic)",
+            "Blueflame Ray (Mythic)"
+        },
+        Multi = true,
+        Default = {},
+        Callback = function(Values)
+            -- Reset all fish to false first
+            for fishId, _ in pairs(specificFishEnabled) do
+                specificFishEnabled[fishId] = false
+            end
+            
+            -- Fish name to ID mapping
+            local fishNameToId = {
+                -- Secret Fish
+                ["Giant Squid (Secret)"] = 156,
+                ["Frostborn Shark (Secret)"] = 136,
+                -- Mythic Fish
+                ["Dotted Stingray (Mythic)"] = 75,
+                ["Abyss Seahorse (Mythic)"] = 15,
+                ["Hawks Turtle (Mythic)"] = 21,
+                ["Hammerhead Shark (Mythic)"] = 52,
+                ["Manta Ray (Mythic)"] = 54,
+                ["Prismy Seahorse (Mythic)"] = 35,
+                ["Loggerhead Turtle (Mythic)"] = 34,
+                ["Blueflame Ray (Mythic)"] = 47
+            }
+            
+            for _, fishName in pairs(Values) do
+                local fishId = fishNameToId[fishName]
+                if fishId then
+                    specificFishEnabled[fishId] = true
+                end
+            end
+            
+            local selectedCount = #Values
+            if selectedCount > 0 then
+                local fishList = ""
+                for i, fishName in pairs(Values) do
+                    fishList = fishList .. fishName:gsub(" %(.+%)", "") -- Remove tier label
+                    if i < selectedCount then
+                        fishList = fishList .. ", "
+                    end
+                end
+                Fluent:Notify({
+                    Title = "Fish Selected",
+                    Content = selectedCount .. " fish types selected",
+                    Duration = 3
+                })
+            end
+        end
+    })
+    
+    -- Helper Functions
+    local function getItemData(itemId)
+        local success, itemData = pcall(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local itemsFolder = ReplicatedStorage:FindFirstChild("Items")
+            if not itemsFolder then
+                return nil
+            end
+            for _, itemModule in pairs(itemsFolder:GetChildren()) do
+                if itemModule:IsA("ModuleScript") then
+                    local success2, data = pcall(function()
+                        return require(itemModule)
+                    end)
+                    
+                    if success2 and data and data.Data and data.Data.Id == itemId then
+                        return {
+                            Name = data.Data.Name,
+                            Type = data.Data.Type,
+                            Tier = data.Data.Tier,
+                            SellPrice = data.SellPrice,
+                            Weight = data.Weight,
+                            Icon = data.Data.Icon,
+                            Probability = data.Probability
+                        }
+                    end
+                end
+            end
+            return nil
+        end)
+        
+        if success then
+            return itemData
+        else
+            warn("Error getting item data:", itemData)
+            return nil
+        end
+    end
+    
+    local function formatWeight(weight, actualWeight)
+        if not actualWeight then
+            return "Unknown"
+        end
+        local weightText = string.format("%.1f kg", actualWeight)
+        if weight and weight.Big and actualWeight >= weight.Big.Min then
+            weightText = weightText .. " (BIG)"
+        end
+        return weightText
+    end
+    
+    local function getTierInfo(tier)
+        local tierColors = {
+            [1] = {name = "Common", color = 0x808080},
+            [2] = {name = "Uncommon", color = 0x00FF00},
+            [3] = {name = "Rare", color = 0x0080FF},
+            [4] = {name = "Epic", color = 0x8000FF},
+            [5] = {name = "Legendary", color = 0xFF8000},
+            [6] = {name = "Mythic", color = 0xFF0080},
+            [7] = {name = "Divine", color = 0xFFD700},
+            [8] = {name = "Exotic", color = 0xFF69B4}
+        }
+        return tierColors[tier] or {name = "Unknown", color = 0x808080}
+    end
+    
+    local function sendWebhook(itemName, itemData, weight, isVariant, variantName)
+        if webhookURL == "" then
+            return
+        end
+        local RunService = game:GetService("RunService")
+        RunService.Heartbeat:Wait()
+        
+        spawn(function()
+            local retryAttempt = 0
+            local maxRetries = 3
+            local success = false
+            
+            while retryAttempt < maxRetries and not success do
+                retryAttempt = retryAttempt + 1
+                
+                local sendSuccess, sendError = pcall(function()
+                    local player = game.Players.LocalPlayer
+                    local tierInfo = getTierInfo(itemData.Tier or 1)
+                    local rarityText = "Unknown"
+                    if itemData.Probability and itemData.Probability.Chance then
+                        local chance = itemData.Probability.Chance
+                        rarityText = string.format("1 in %.0f", 1/chance)
+                    end
+                    local fullItemName = itemName
+                    if isVariant and variantName then
+                        fullItemName = variantName .. " " .. itemName
+                    end
+                    local data = {
+                        ["username"] = "#DJSTEST",
+                        ["embeds"] = {{
+                            ["title"] = "#DJSTEST - Fish It",
+                            ["color"] = tierInfo.color,
+                            ["fields"] = {
+                               {
+                                    ["name"] = "**-> Profile**",
+                                    ["value"] = "**Username:** "..player.Name,
+                                    ["inline"] = false
+                                },
+                                {
+                                    ["name"] = "**-> Info**",
+                                    ["value"] = "**🐟 Fish:** " .. fullItemName .. "\n**⚖️ Weight:** "..formatWeight(itemData.Weight, weight).."\n**💰 Price:** ".. (itemData.SellPrice or 0) .."\n**⭐ Tier:** "..tierInfo.name .. " (T" .. (itemData.Tier or 1) .. ")",
+                                    ["inline"] = false
+                                }
+                            },
+                            ["footer"] = {
+                                ["text"] = "https://discord.gg/uwXYuxj6cF • " .. os.date("%Y-%m-%d %H:%M:%S")
+                            },
+                            ["thumbnail"] = {
+                                ["url"] = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=150&height=150&format=png"
+                            }
+                        }}
+                    }
+                    local headers = {["Content-Type"] = "application/json"}
+                    local body = game:GetService("HttpService"):JSONEncode(data)
+                    local req = http_request or request or syn.request
+                    if fluxus and fluxus.request then
+                        req = fluxus.request
+                    end
+                    if req then
+                        local response = req({
+                            Url = webhookURL,
+                            Method = "POST",
+                            Headers = headers,
+                            Body = body
+                        })
+                        if response and (response.StatusCode == 200 or response.StatusCode == 204) then
+                            success = true
+                        else
+                            error("HTTP Error: " .. (response and response.StatusCode or "Unknown"))
+                        end
+                    else
+                        error("No HTTP request function available")
+                    end
+                end)
+                
+                if sendSuccess then
+                    success = true
+                    httpRetryCount = 0
+                else
+                    warn("Webhook attempt " .. retryAttempt .. " failed:", sendError)
+                    
+                    if retryAttempt < maxRetries then
+                        wait(retryAttempt * 2)
+                    else
+                        httpRetryCount = httpRetryCount + 1
+                        
+                        if httpRetryCount >= maxHttpRetries then
+                            warn("Too many webhook failures, temporarily disabling...")
+                            isWebhookActive = false
+                            Options.WebhookToggle:SetValue(false)
+                            spawn(function()
+                                wait(30)
+                                httpRetryCount = 0
+                            end)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+    
+    local function startReplionMonitoring()
+        local success, error = pcall(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local replionPackage = ReplicatedStorage:FindFirstChild("Packages")
+            if replionPackage then
+                replionPackage = replionPackage:FindFirstChild("_Index")
+                if replionPackage then
+                    for _, folder in pairs(replionPackage:GetChildren()) do
+                        if string.find(folder.Name:lower(), "replion") then
+                            local replionModule = folder:FindFirstChild("replion")
+                            if replionModule then
+                                local Replion = require(replionModule)
+                                local Client = Replion.Client
+                                local dataReplion = Client:WaitReplion("Data")
+                                local lastProcessTime = 0
+                                local processingCooldown = 2 
+                                dataReplion:OnChange("Inventory", function(newInventory, oldInventory)
+                                    if not isWebhookActive or not newInventory then
+                                        return
+                                    end
+                                    local currentTime = tick()
+                                    if currentTime - lastProcessTime < processingCooldown then
+                                        return
+                                    end
+                                    lastProcessTime = currentTime
+                                    task.defer(function()
+                                        local processSuccess, processError = pcall(function()
+                                            for category, items in pairs(newInventory) do
+                                                if type(items) == "table" then
+                                                    for uuid, itemInfo in pairs(items) do
+                                                        local isNewItem = false
+                                                        
+                                                        if not oldInventory or not oldInventory[category] or not oldInventory[category][uuid] then
+                                                            isNewItem = true
+                                                        elseif oldInventory[category][uuid].Quantity and itemInfo.Quantity then
+                                                            if itemInfo.Quantity > oldInventory[category][uuid].Quantity then
+                                                                isNewItem = true
+                                                            end
+                                                        end
+                                                        
+                                                        if isNewItem and itemInfo.Id then
+                                                            local itemData = getItemData(itemInfo.Id)
+                                                            
+                                                            if itemData and itemData.Type == "Fishes" then
+                                                                local fishId = itemInfo.Id
+                                                                if specificFishEnabled[fishId] == true then
+                                                                    local isVariant = false
+                                                                    local variantName = nil
+                                                                    if itemInfo.Metadata and itemInfo.Metadata.VariantId then
+                                                                        local variantSuccess, variantData = pcall(function()
+                                                                            local ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
+                                                                            return ItemUtility:GetVariantData(itemInfo.Metadata.VariantId)
+                                                                        end)
+                                                                        
+                                                                        if variantSuccess and variantData and variantData.Data then
+                                                                            isVariant = true
+                                                                            variantName = variantData.Data.Name
+                                                                        end
+                                                                    end
+                                                                    local weight = nil
+                                                                    if itemInfo.Metadata and itemInfo.Metadata.Weight then
+                                                                        weight = itemInfo.Metadata.Weight
+                                                                    end
+                                                                    sendWebhook(itemData.Name, itemData, weight, isVariant, variantName)
+                                                                end
+                                                            end
+                                                        end
+                                                    end
+                                                end
+                                            end
+                                        end)
+                                        
+                                        if not processSuccess then
+                                            warn("Error processing inventory change:", processError)
+                                        end
+                                    end)
+                                end)
+                                
+                                return true
+                            end
+                        end
+                    end
+                end
+            end
+            return false
+        end)
+        
+        if success then
+            return true
+        else
+            warn("Failed to start Replion monitoring:", error)
+            return false
+        end
+    end
+    
+    local function startInventoryMonitoring()
+        httpRetryCount = 0
+        if startReplionMonitoring() then
+            Fluent:Notify({
+                Title = "Webhook Active",
+                Content = "Advanced inventory monitoring started",
+                Duration = 3
+            })
+            return
+        end
+        
+        Fluent:Notify({
+            Title = "Webhook Active",
+            Content = "Basic monitoring started",
+            Duration = 3
+        })
+    end
+    
+    local function stopInventoryMonitoring()
+        if inventoryConnection then
+            inventoryConnection:Disconnect()
+            inventoryConnection = nil
+        end
+        lastInventoryState = {}
+        httpRetryCount = 0
+        
+        Fluent:Notify({
+            Title = "Webhook Disabled",
+            Content = "Fish tracking stopped",
+            Duration = 3
+        })
+    end
+    
+    -- Webhook Controls Section
+    webhookTab:AddSection("Webhook Controls")
+    
+    local webhookToggle = webhookTab:AddToggle("WebhookToggle", {
+        Title = "Enable Webhook",
+        Description = "Start tracking selected fish",
+        Default = false,
+        Callback = function(Value)
+            isWebhookActive = Value
+            
+            if Value then
+                if webhookURL == "" then
+                    Options.WebhookToggle:SetValue(false)
+                    Fluent:Notify({
+                        Title = "Webhook URL Required",
+                        Content = "Please enter a webhook URL first",
+                        Duration = 5
+                    })
+                    return
+                end
+                
+                local selectedCount = 0
+                for _, enabled in pairs(specificFishEnabled) do
+                    if enabled then selectedCount = selectedCount + 1 end
+                end
+                
+                if selectedCount == 0 then
+                    Options.WebhookToggle:SetValue(false)
+                    Fluent:Notify({
+                        Title = "No Fish Selected",
+                        Content = "Please select fish to track first",
+                        Duration = 5
+                    })
+                    return
+                end
+                
+                startInventoryMonitoring()
+            else
+                stopInventoryMonitoring()
+            end
+        end
+    })
+    
+    local testWebhookButton = webhookTab:AddButton({
+        Title = "Test Webhook",
+        Description = "Send a test message to verify webhook",
+        Callback = function()
+            if webhookURL == "" then
+                Fluent:Notify({
+                    Title = "No Webhook URL",
+                    Content = "Please enter webhook URL first",
+                    Duration = 3
+                })
+                return
+            end
+            local testData = {
+                Name = "Test Fish",
+                Type = "Fishes",
+                Tier = 3,
+                SellPrice = 150,
+                Weight = {Default = {Min = 2, Max = 5}},
+                Probability = {Chance = 0.05}
+            }
+            sendWebhook("Test Fish", testData, 3.5, false, nil)
+            
+            Fluent:Notify({
+                Title = "Test Sent",
+                Content = "Check your Discord channel",
+                Duration = 3
+            })
+        end
+    })
+    
+    local deselectAllButton = webhookTab:AddButton({
+        Title = "Deselect All Fish",
+        Description = "Clear all fish selections",
+        Callback = function()
+            Options.FishSelection:SetValues({})
+            for fishId, _ in pairs(specificFishEnabled) do
+                specificFishEnabled[fishId] = false
+            end
+            
+            Fluent:Notify({
+                Title = "Fish Deselected",
+                Content = "All fish selections cleared",
+                Duration = 3
+            })
+        end
+    })
+    
+    local resetWebhookButton = webhookTab:AddButton({
+        Title = "Reset Webhook",
+        Description = "Clear webhook URL and stop tracking",
+        Callback = function()
+            if isWebhookActive then
+                Options.WebhookToggle:SetValue(false)
+            end
+            webhookURL = ""
+            Options.WebhookURL:SetValue("")
+            httpRetryCount = 0
+            lastInventoryState = {}
+            
+            Fluent:Notify({
+                Title = "Webhook Reset",
+                Content = "All webhook settings cleared",
+                Duration = 3
+            })
+        end
+    })
+    
+end
+Window:SelectTab(1)
+AutoConfig:Initialize(Fluent)
