@@ -1055,7 +1055,7 @@ local function startFishingCycle()
             return false
         end
         
-        -- If Auto Perfect/Amazing V2 is active, use V1 method for charging
+        -- If Auto Perfect/Amazing V2 is active, use V1 method with proper timing
         if isAutoPerfectV2Active or isAutoAmazingV2Active then
             local ReplicatedStorage = game:GetService("ReplicatedStorage")
             local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
@@ -1066,7 +1066,7 @@ local function startFishingCycle()
                 local requestFishing = net:FindFirstChild("RF/RequestFishingMinigameStarted")
                 
                 if chargeFishingRod and requestFishing then
-                    -- Use V1 charging method
+                    -- Step 1: Start charging (like V1)
                     local chargeValue
                     if isAutoPerfectV2Active then
                         chargeValue = 9999999999
@@ -1074,10 +1074,14 @@ local function startFishingCycle()
                         chargeValue = 1755509015.922411
                     end
                     
-                    chargeFishingRod:InvokeServer(chargeValue)
-                    task.wait(0.3)
+                    -- Send charge with server time
+                    local serverTime = workspace:GetServerTimeNow()
+                    chargeFishingRod:InvokeServer(serverTime)
                     
-                    -- Request fishing minigame
+                    -- Step 2: Wait for charge phase (important timing)
+                    task.wait(1.5) -- Let charge build up like in original V1
+                    
+                    -- Step 3: Send fishing request with specific values
                     local requestValue1, requestValue2
                     if isAutoPerfectV2Active then
                         requestValue1, requestValue2 = 0, 1
@@ -1085,8 +1089,12 @@ local function startFishingCycle()
                         requestValue1, requestValue2 = -139.6379699707, 0.87694226394928
                     end
                     
-                    requestFishing:InvokeServer(requestValue1, requestValue2)
-                    return true
+                    local result = requestFishing:InvokeServer(requestValue1, requestValue2)
+                    
+                    -- Step 4: Wait a bit before allowing minigame handling
+                    task.wait(0.5)
+                    
+                    return result ~= nil
                 end
             end
             
@@ -1107,19 +1115,36 @@ local function startFishingCycle()
     return success
 end
 
--- Function to handle fishing minigame clicks
+-- Enhanced minigame handler with better timing
 local function handleFishingMinigame()
-    local controller = getFishingController()
-    if not controller then return end
-    
     spawn(function()
         while isAutoFishV2Active do
             local success, error = pcall(function()
-                -- Check if we're in a fishing minigame
-                local currentGUID = controller:GetCurrentGUID()
-                if currentGUID then
-                    -- Auto-click for the minigame
-                    controller:RequestFishingMinigameClick()
+                local controller = getFishingController()
+                if controller then
+                    local currentGUID = controller:GetCurrentGUID()
+                    if currentGUID then
+                        -- For V1 method (Perfect/Amazing), complete immediately
+                        if isAutoPerfectV2Active or isAutoAmazingV2Active then
+                            -- Use V1 completion method
+                            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                            local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+                            
+                            if netFolder and netFolder:FindFirstChild("net") then
+                                local net = netFolder.net
+                                local fishingCompleted = net:FindFirstChild("RE/FishingCompleted")
+                                if fishingCompleted then
+                                    task.wait(fishingDelay) -- Use the fishing delay
+                                    fishingCompleted:FireServer()
+                                    task.wait(0.5)
+                                    return
+                                end
+                            end
+                        else
+                            -- For natural V2 method, use controller
+                            controller:RequestFishingMinigameClick()
+                        end
+                    end
                 end
             end)
             
@@ -1127,7 +1152,7 @@ local function handleFishingMinigame()
                 warn("[AUTO FISHING V2] Minigame error: " .. tostring(error))
             end
             
-            task.wait(0.1) -- Fast clicking for minigame
+            task.wait(0.1)
         end
     end)
 end
