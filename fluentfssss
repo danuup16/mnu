@@ -1055,7 +1055,45 @@ local function startFishingCycle()
             return false
         end
         
-        -- Use the controller's RequestChargeFishingRod method
+        -- If Auto Perfect/Amazing V2 is active, use V1 method for charging
+        if isAutoPerfectV2Active or isAutoAmazingV2Active then
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+            
+            if netFolder and netFolder:FindFirstChild("net") then
+                local net = netFolder.net
+                local chargeFishingRod = net:FindFirstChild("RF/ChargeFishingRod")
+                local requestFishing = net:FindFirstChild("RF/RequestFishingMinigameStarted")
+                
+                if chargeFishingRod and requestFishing then
+                    -- Use V1 charging method
+                    local chargeValue
+                    if isAutoPerfectV2Active then
+                        chargeValue = 9999999999
+                    else -- isAutoAmazingV2Active
+                        chargeValue = 1755509015.922411
+                    end
+                    
+                    chargeFishingRod:InvokeServer(chargeValue)
+                    task.wait(0.3)
+                    
+                    -- Request fishing minigame
+                    local requestValue1, requestValue2
+                    if isAutoPerfectV2Active then
+                        requestValue1, requestValue2 = 0, 1
+                    else -- isAutoAmazingV2Active
+                        requestValue1, requestValue2 = -139.6379699707, 0.87694226394928
+                    end
+                    
+                    requestFishing:InvokeServer(requestValue1, requestValue2)
+                    return true
+                end
+            end
+            
+            warn("[AUTO FISHING V2] Could not find V1 methods, falling back to controller")
+        end
+        
+        -- Use the controller's RequestChargeFishingRod method (original V2 method)
         controller:RequestChargeFishingRod(screenCenter, true, true)
         
         return true
@@ -1186,78 +1224,46 @@ local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
     end
 })
 
--- Auto Perfect V2 (works with controller method)
+-- Auto Perfect V2 (uses V1 method for reliability)
 local isAutoPerfectV2Active = false
-local originalGetPower = nil
-local perfectV2Connection = nil
-
-local function enablePerfectV2()
-    local success, error = pcall(function()
-        local controller = getFishingController()
-        if not controller then return false end
-        
-        -- Store original function if not already stored
-        if not originalGetPower and controller._getPower then
-            originalGetPower = controller._getPower
-        end
-        
-        -- Permanent override for perfect results
-        if controller._getPower then
-            controller._getPower = function(self)
-                -- Return maximum power (0.99 to avoid potential issues)
-                return 0.99
-            end
-            return true
-        end
-        return false
-    end)
-    
-    return success
-end
-
-local function disablePerfectV2()
-    local success, error = pcall(function()
-        local controller = getFishingController()
-        if controller and originalGetPower then
-            controller._getPower = originalGetPower
-            originalGetPower = nil
-            return true
-        end
-        return false
-    end)
-    
-    return success
-end
 
 local autoPerfectV2Toggle = fishTab:AddToggle("AutoPerfectV2", {
     Title = "Auto Perfect V2",
-    Description = "Enhanced perfect fishing for V2 system",
+    Description = "Perfect fishing using reliable V1 method",
     Default = false,
     Callback = function(Value)
         isAutoPerfectV2Active = Value
         if Value then
-            if enablePerfectV2() then
-                Fluent:Notify({
-                    Title = "Auto Perfect V2 Enabled",
-                    Content = "Power calculation overridden for perfect results",
-                    Duration = 3
-                })
-            else
-                Options.AutoPerfectV2:SetValue(false)
-                Fluent:Notify({
-                    Title = "Auto Perfect V2 Failed",
-                    Content = "Could not override power calculation",
-                    Duration = 5
-                })
+            isAutoAmazingV2Active = false
+            if Options.AutoAmazingV2 then
+                Options.AutoAmazingV2:SetValue(false)
             end
-        else
-            if disablePerfectV2() then
-                Fluent:Notify({
-                    Title = "Auto Perfect V2 Disabled",
-                    Content = "Power calculation restored to normal",
-                    Duration = 3
-                })
-            end
+            Fluent:Notify({
+                Title = "Auto Perfect V2 Enabled",
+                Content = "Using reliable perfect fishing method",
+                Duration = 3
+            })
+        end
+    end
+})
+
+-- Auto Amazing V2 (uses V1 method for reliability)
+local isAutoAmazingV2Active = false
+
+local autoAmazingV2Toggle = fishTab:AddToggle("AutoAmazingV2", {
+    Title = "Auto Amazing V2", 
+    Description = "Amazing fishing using reliable V1 method",
+    Default = false,
+    Callback = function(Value)
+        isAutoAmazingV2Active = Value
+        if Value then
+            isAutoPerfectV2Active = false
+            Options.AutoPerfectV2:SetValue(false)
+            Fluent:Notify({
+                Title = "Auto Amazing V2 Enabled",
+                Content = "Using reliable amazing fishing method",
+                Duration = 3
+            })
         end
     end
 })
