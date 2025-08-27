@@ -985,251 +985,100 @@ local autoFishV2Connection = nil
 local fishingControllerModule = nil
 local autoFishV2Delay = 3
 
--- Function to get the FishingController module
-local function getFishingController()
-    if fishingControllerModule then
-        return fishingControllerModule
-    end
-    
-    local success, result = pcall(function()
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
-        if Controllers then
-            local FishingController = Controllers:FindFirstChild("FishingController")
-            if FishingController then
-                return require(FishingController)
-            end
-        end
-        return nil
-    end)
-    
-    if success and result then
-        fishingControllerModule = result
-        return fishingControllerModule
-    end
-    
-    return nil
-end
+-- Auto Fishing V2 - Complete rewrite using V1 logic
+local isAutoFishV2Active = false
+local fishingV2DelayTime = 3
 
--- Function to check if we can start fishing
-local function canStartFishing()
-    local controller = getFishingController()
-    if not controller then
-        return false, "Controller not found"
-    end
-    
-    local success, result = pcall(function()
-        return not controller:OnCooldown()
-    end)
-    
-    if success then
-        return result, result and "Ready" or "On cooldown"
-    end
-    
-    return false, "Error checking cooldown"
-end
-
--- Function to start fishing cycle
-local function startFishingCycle()
-    local controller = getFishingController()
-    if not controller then
-        warn("[AUTO FISHING V2] Controller not found")
-        return false
-    end
-    
+-- Direct copy of V1 fishing cycle with V2 wrapper
+local function performV2FishingCycle()
     local success, error = pcall(function()
-        local Players = game:GetService("Players")
-        local player = Players.LocalPlayer
-        local camera = workspace.CurrentCamera
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
         
-        -- Get screen center position
-        local screenCenter = Vector2.new(
-            camera.ViewportSize.X / 2,
-            camera.ViewportSize.Y / 2
-        )
-        
-        -- Check if we can fish
-        local canFish, reason = canStartFishing()
-        if not canFish then
-            warn("[AUTO FISHING V2] Cannot fish: " .. reason)
+        if not netFolder or not netFolder:FindFirstChild("net") then
+            warn("Network folder not found!")
             return false
         end
         
-        -- If Auto Perfect/Amazing V2 is active, use V1 method with proper timing
-        if isAutoPerfectV2Active or isAutoAmazingV2Active then
-            local ReplicatedStorage = game:GetService("ReplicatedStorage")
-            local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
-            
-            if netFolder and netFolder:FindFirstChild("net") then
-                local net = netFolder.net
-                local chargeFishingRod = net:FindFirstChild("RF/ChargeFishingRod")
-                local requestFishing = net:FindFirstChild("RF/RequestFishingMinigameStarted")
-                
-                if chargeFishingRod and requestFishing then
-                    -- Step 1: Start charging (like V1)
-                    local chargeValue
-                    if isAutoPerfectV2Active then
-                        chargeValue = 9999999999
-                    else -- isAutoAmazingV2Active
-                        chargeValue = 1755509015.922411
-                    end
-                    
-                    -- Send charge with server time
-                    local serverTime = workspace:GetServerTimeNow()
-                    chargeFishingRod:InvokeServer(serverTime)
-                    
-                    -- Step 2: Wait for charge phase (important timing)
-                    task.wait(1.5) -- Let charge build up like in original V1
-                    
-                    -- Step 3: Send fishing request with specific values
-                    local requestValue1, requestValue2
-                    if isAutoPerfectV2Active then
-                        requestValue1, requestValue2 = 0, 1
-                    else -- isAutoAmazingV2Active
-                        requestValue1, requestValue2 = -139.6379699707, 0.87694226394928
-                    end
-                    
-                    local result = requestFishing:InvokeServer(requestValue1, requestValue2)
-                    
-                    -- Step 4: Wait a bit before allowing minigame handling
-                    task.wait(0.5)
-                    
-                    return result ~= nil
-                end
+        local net = netFolder.net
+        local chargeFishingRod = net:FindFirstChild("RF/ChargeFishingRod")
+        if chargeFishingRod then
+            if isAutoPerfectV2Active then
+                local value = 9999999999
+                chargeFishingRod:InvokeServer(value)
+            elseif isAutoAmazingV2Active then
+                local value = 1755509015.922411
+                chargeFishingRod:InvokeServer(value)
+            else
+                local value = math.random(8000, 10000)
+                chargeFishingRod:InvokeServer(value)
             end
-            
-            warn("[AUTO FISHING V2] Could not find V1 methods, falling back to controller")
+            task.wait(0.3)
         end
         
-        -- Use the controller's RequestChargeFishingRod method (original V2 method)
-        controller:RequestChargeFishingRod(screenCenter, true, true)
+        local requestFishing = net:FindFirstChild("RF/RequestFishingMinigameStarted")
+        if requestFishing then
+            if isAutoPerfectV2Active then
+                requestFishing:InvokeServer(0, 1)
+            elseif isAutoAmazingV2Active then
+                requestFishing:InvokeServer(-139.6379699707, 0.87694226394928)
+            else
+                local randomX = math.random(-200, 200) / 100
+                local randomY = math.random(50, 100) / 100
+                requestFishing:InvokeServer(randomX, randomY)
+            end
+        end
+        
+        task.wait(fishingV2DelayTime)
+        
+        local fishingCompleted = net:FindFirstChild("RE/FishingCompleted")
+        if fishingCompleted then
+            fishingCompleted:FireServer()
+            task.wait(0.5)
+        end
         
         return true
     end)
     
     if not success then
-        warn("[AUTO FISHING V2] Error in fishing cycle: " .. tostring(error))
+        warn("V2 Fishing cycle error: " .. tostring(error))
         return false
     end
     
     return success
 end
 
--- Enhanced minigame handler with better timing
-local function handleFishingMinigame()
-    spawn(function()
-        while isAutoFishV2Active do
-            local success, error = pcall(function()
-                local controller = getFishingController()
-                if controller then
-                    local currentGUID = controller:GetCurrentGUID()
-                    if currentGUID then
-                        -- For V1 method (Perfect/Amazing), complete immediately
-                        if isAutoPerfectV2Active or isAutoAmazingV2Active then
-                            -- Use V1 completion method
-                            local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                            local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
-                            
-                            if netFolder and netFolder:FindFirstChild("net") then
-                                local net = netFolder.net
-                                local fishingCompleted = net:FindFirstChild("RE/FishingCompleted")
-                                if fishingCompleted then
-                                    task.wait(fishingDelay) -- Use the fishing delay
-                                    fishingCompleted:FireServer()
-                                    task.wait(0.5)
-                                    return
-                                end
-                            end
-                        else
-                            -- For natural V2 method, use controller
-                            controller:RequestFishingMinigameClick()
-                        end
-                    end
-                end
-            end)
-            
-            if not success then
-                warn("[AUTO FISHING V2] Minigame error: " .. tostring(error))
-            end
-            
-            task.wait(0.1)
-        end
-    end)
-end
-
--- Auto Fishing V2 Toggle
 local autoFishV2Toggle = fishTab:AddToggle("AutoFishingV2", {
     Title = "Auto Fishing V2",
-    Description = "Natural fishing automation using game controller",
+    Description = "Direct V1 method with V2 interface",
     Default = false,
     Callback = function(Value)
         isAutoFishV2Active = Value
         
         if Value then
-            -- Check if controller is available
-            local controller = getFishingController()
-            if not controller then
-                Options.AutoFishingV2:SetValue(false)
-                Fluent:Notify({
-                    Title = "Auto Fishing V2 Failed",
-                    Content = "Could not access fishing controller",
-                    Duration = 5
-                })
-                return
-            end
-            
-            -- Start minigame handler
-            handleFishingMinigame()
-            
-            -- Main fishing loop
             spawn(function()
                 while isAutoFishV2Active do
                     if not isAutoFishV2Active then break end
                     
-                    local cycleSuccess = startFishingCycle()
-                    if cycleSuccess then
-                        -- Wait for fishing to complete
-                        local waitTime = 0
-                        local maxWait = 15 -- Maximum wait time in seconds
-                        
-                        while waitTime < maxWait and isAutoFishV2Active do
-                            local controller = getFishingController()
-                            if controller then
-                                local currentGUID = controller:GetCurrentGUID()
-                                if not currentGUID then
-                                    -- Fishing completed
-                                    break
-                                end
-                            end
-                            
-                            task.wait(0.5)
-                            waitTime = waitTime + 0.5
-                        end
-                        
-                        -- Wait before next cycle
-                        for i = 1, autoFishV2Delay * 10 do
-                            if not isAutoFishV2Active then break end
-                            task.wait(0.1)
-                        end
-                    else
-                        -- If cycle failed, wait longer before retry
-                        for i = 1, 50 do -- 5 second wait
-                            if not isAutoFishV2Active then break end
-                            task.wait(0.1)
-                        end
+                    performV2FishingCycle()
+                    
+                    -- Wait between cycles
+                    for i = 1, 10 do
+                        if not isAutoFishV2Active then break end
+                        task.wait(0.1)
                     end
                 end
             end)
             
             Fluent:Notify({
                 Title = "Auto Fishing V2 Started",
-                Content = "Natural fishing automation active",
+                Content = "Using direct V1 method",
                 Duration = 3
             })
         else
             Fluent:Notify({
                 Title = "Auto Fishing V2 Stopped",
-                Content = "Fishing automation disabled",
+                Content = "Fishing stopped",
                 Duration = 3
             })
         end
@@ -1239,13 +1088,13 @@ local autoFishV2Toggle = fishTab:AddToggle("AutoFishingV2", {
 -- Fishing Delay Slider for V2
 local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
     Title = "V2 Fishing Delay",
-    Description = "Delay between fishing attempts (seconds)",
+    Description = "Delay during fishing process (seconds)",
     Default = 3,
     Min = 1,
     Max = 10,
     Rounding = 1,
     Callback = function(Value)
-        autoFishV2Delay = Value
+        fishingV2DelayTime = Value
     end
 })
 
