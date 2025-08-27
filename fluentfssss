@@ -696,19 +696,15 @@ do
             end
         end
     })
-
 end
--- Fishing Tab
 do
     local fishTab = Tabs.Fishing
-    
     local isAutoFishActive = false
     local fishingDelay = 2.3 
     local isAutoPerfectActive = false
     local isAutoAmazingActive = false
     local toolRefreshInterval = 300
     local lastToolRefreshTime = 0
-
     local function equipFishingTool()
         local success, error = pcall(function()
             local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -979,6 +975,322 @@ do
             end
         end
     })
+    -- Add this to your fishing tab section after the existing auto fishing code
+
+-- Auto Fishing V2 Section
+fishTab:AddSection("Auto Fishing V2 (Natural)")
+
+local isAutoFishV2Active = false
+local autoFishV2Connection = nil
+local fishingControllerModule = nil
+local autoFishV2Delay = 3
+
+-- Function to get the FishingController module
+local function getFishingController()
+    if fishingControllerModule then
+        return fishingControllerModule
+    end
+    
+    local success, result = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
+        if Controllers then
+            local FishingController = Controllers:FindFirstChild("FishingController")
+            if FishingController then
+                return require(FishingController)
+            end
+        end
+        return nil
+    end)
+    
+    if success and result then
+        fishingControllerModule = result
+        return fishingControllerModule
+    end
+    
+    return nil
+end
+
+-- Function to check if we can start fishing
+local function canStartFishing()
+    local controller = getFishingController()
+    if not controller then
+        return false, "Controller not found"
+    end
+    
+    local success, result = pcall(function()
+        return not controller:OnCooldown()
+    end)
+    
+    if success then
+        return result, result and "Ready" or "On cooldown"
+    end
+    
+    return false, "Error checking cooldown"
+end
+
+-- Function to start fishing cycle
+local function startFishingCycle()
+    local controller = getFishingController()
+    if not controller then
+        warn("[AUTO FISHING V2] Controller not found")
+        return false
+    end
+    
+    local success, error = pcall(function()
+        local Players = game:GetService("Players")
+        local player = Players.LocalPlayer
+        local camera = workspace.CurrentCamera
+        
+        -- Get screen center position
+        local screenCenter = Vector2.new(
+            camera.ViewportSize.X / 2,
+            camera.ViewportSize.Y / 2
+        )
+        
+        -- Check if we can fish
+        local canFish, reason = canStartFishing()
+        if not canFish then
+            warn("[AUTO FISHING V2] Cannot fish: " .. reason)
+            return false
+        end
+        
+        -- Use the controller's RequestChargeFishingRod method
+        controller:RequestChargeFishingRod(screenCenter, true, true)
+        
+        return true
+    end)
+    
+    if not success then
+        warn("[AUTO FISHING V2] Error in fishing cycle: " .. tostring(error))
+        return false
+    end
+    
+    return success
+end
+
+-- Function to handle fishing minigame clicks
+local function handleFishingMinigame()
+    local controller = getFishingController()
+    if not controller then return end
+    
+    spawn(function()
+        while isAutoFishV2Active do
+            local success, error = pcall(function()
+                -- Check if we're in a fishing minigame
+                local currentGUID = controller:GetCurrentGUID()
+                if currentGUID then
+                    -- Auto-click for the minigame
+                    controller:RequestFishingMinigameClick()
+                end
+            end)
+            
+            if not success then
+                warn("[AUTO FISHING V2] Minigame error: " .. tostring(error))
+            end
+            
+            task.wait(0.1) -- Fast clicking for minigame
+        end
+    end)
+end
+
+-- Auto Fishing V2 Toggle
+local autoFishV2Toggle = fishTab:AddToggle("AutoFishingV2", {
+    Title = "Auto Fishing V2",
+    Description = "Natural fishing automation using game controller",
+    Default = false,
+    Callback = function(Value)
+        isAutoFishV2Active = Value
+        
+        if Value then
+            -- Check if controller is available
+            local controller = getFishingController()
+            if not controller then
+                Options.AutoFishingV2:SetValue(false)
+                Fluent:Notify({
+                    Title = "Auto Fishing V2 Failed",
+                    Content = "Could not access fishing controller",
+                    Duration = 5
+                })
+                return
+            end
+            
+            -- Start minigame handler
+            handleFishingMinigame()
+            
+            -- Main fishing loop
+            spawn(function()
+                while isAutoFishV2Active do
+                    if not isAutoFishV2Active then break end
+                    
+                    local cycleSuccess = startFishingCycle()
+                    if cycleSuccess then
+                        -- Wait for fishing to complete
+                        local waitTime = 0
+                        local maxWait = 15 -- Maximum wait time in seconds
+                        
+                        while waitTime < maxWait and isAutoFishV2Active do
+                            local controller = getFishingController()
+                            if controller then
+                                local currentGUID = controller:GetCurrentGUID()
+                                if not currentGUID then
+                                    -- Fishing completed
+                                    break
+                                end
+                            end
+                            
+                            task.wait(0.5)
+                            waitTime = waitTime + 0.5
+                        end
+                        
+                        -- Wait before next cycle
+                        for i = 1, autoFishV2Delay * 10 do
+                            if not isAutoFishV2Active then break end
+                            task.wait(0.1)
+                        end
+                    else
+                        -- If cycle failed, wait longer before retry
+                        for i = 1, 50 do -- 5 second wait
+                            if not isAutoFishV2Active then break end
+                            task.wait(0.1)
+                        end
+                    end
+                end
+            end)
+            
+            Fluent:Notify({
+                Title = "Auto Fishing V2 Started",
+                Content = "Natural fishing automation active",
+                Duration = 3
+            })
+        else
+            Fluent:Notify({
+                Title = "Auto Fishing V2 Stopped",
+                Content = "Fishing automation disabled",
+                Duration = 3
+            })
+        end
+    end
+})
+
+-- Fishing Delay Slider for V2
+local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
+    Title = "V2 Fishing Delay",
+    Description = "Delay between fishing attempts (seconds)",
+    Default = 3,
+    Min = 1,
+    Max = 10,
+    Rounding = 1,
+    Callback = function(Value)
+        autoFishV2Delay = Value
+    end
+})
+
+-- Auto Perfect V2 (works with controller method)
+local isAutoPerfectV2Active = false
+
+local autoPerfectV2Toggle = fishTab:AddToggle("AutoPerfectV2", {
+    Title = "Auto Perfect V2",
+    Description = "Enhanced perfect fishing for V2 system",
+    Default = false,
+    Callback = function(Value)
+        isAutoPerfectV2Active = Value
+        if Value then
+            -- Hook into the controller's power calculation
+            spawn(function()
+                while isAutoPerfectV2Active do
+                    local success, error = pcall(function()
+                        local controller = getFishingController()
+                        if controller and controller._getPower then
+                            -- Override the power calculation
+                            local originalGetPower = controller._getPower
+                            controller._getPower = function(self)
+                                return 1 -- Maximum power for perfect result
+                            end
+                            
+                            task.wait(0.1)
+                            
+                            -- Restore original function after a short time
+                            controller._getPower = originalGetPower
+                        end
+                    end)
+                    
+                    if not success then
+                        warn("[AUTO PERFECT V2] Error: " .. tostring(error))
+                    end
+                    
+                    task.wait(1)
+                end
+            end)
+        end
+    end
+})
+
+-- Auto Complete Minigame V2
+local isAutoCompleteV2Active = false
+
+local autoCompleteV2Toggle = fishTab:AddToggle("AutoCompleteV2", {
+    Title = "Auto Complete V2",
+    Description = "Automatically complete fishing minigames",
+    Default = false,
+    Callback = function(Value)
+        isAutoCompleteV2Active = Value
+        if Value then
+            spawn(function()
+                while isAutoCompleteV2Active do
+                    local success, error = pcall(function()
+                        local controller = getFishingController()
+                        if controller then
+                            local currentGUID = controller:GetCurrentGUID()
+                            if currentGUID then
+                                -- Rapidly complete the minigame
+                                for i = 1, 10 do
+                                    controller:RequestFishingMinigameClick()
+                                    task.wait(0.02)
+                                end
+                            end
+                        end
+                    end)
+                    
+                    if not success then
+                        warn("[AUTO COMPLETE V2] Error: " .. tostring(error))
+                    end
+                    
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end
+})
+
+-- Debug Info Button
+local debugV2Button = fishTab:AddButton({
+    Title = "Debug V2 System",
+    Description = "Check Auto Fishing V2 status",
+    Callback = function()
+        local controller = getFishingController()
+        local canFish, reason = canStartFishing()
+        local currentGUID = controller and controller:GetCurrentGUID() or "None"
+        
+        local debugInfo = string.format(
+            "Controller: %s\nCan Fish: %s\nReason: %s\nCurrent GUID: %s\nV2 Active: %s",
+            controller and "Found" or "Not Found",
+            tostring(canFish),
+            reason or "Unknown",
+            tostring(currentGUID),
+            tostring(isAutoFishV2Active)
+        )
+        
+        Fluent:Notify({
+            Title = "Auto Fishing V2 Debug",
+            Content = debugInfo,
+            Duration = 8
+        })
+        
+        print("[AUTO FISHING V2 DEBUG]")
+        print(debugInfo)
+    end
+})
 
     fishTab:AddSection("Auto Farm")
     
@@ -2319,22 +2631,14 @@ do
         end
     })
 end
--- NOTE: Add this line to Part 1 in the Tabs section:
--- Webhook = Window:AddTab({ Title = "Webhook", Icon = "bell-ring" }),
-
--- Webhook Tab
 do
     local webhookTab = Tabs.Webhook
-    
-    -- Webhook Variables
     local webhookURL = ""
     local isWebhookActive = false
     local lastInventoryState = {}
     local inventoryConnection = nil
     local httpRetryCount = 0
     local maxHttpRetries = 3
-    
-    -- Specific Fish Enabled (Only these will be tracked)
     local specificFishEnabled = {
         -- Secret Fish
         [156] = false, -- Giant Squid
@@ -2372,7 +2676,6 @@ do
         end
     })
     
-    -- Fish Selection Section
     webhookTab:AddSection("Fish Selection")
     
     local fishDropdown = webhookTab:AddDropdown("FishSelection", {
