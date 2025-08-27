@@ -1188,6 +1188,46 @@ local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
 
 -- Auto Perfect V2 (works with controller method)
 local isAutoPerfectV2Active = false
+local originalGetPower = nil
+local perfectV2Connection = nil
+
+local function enablePerfectV2()
+    local success, error = pcall(function()
+        local controller = getFishingController()
+        if not controller then return false end
+        
+        -- Store original function if not already stored
+        if not originalGetPower and controller._getPower then
+            originalGetPower = controller._getPower
+        end
+        
+        -- Permanent override for perfect results
+        if controller._getPower then
+            controller._getPower = function(self)
+                -- Return maximum power (0.99 to avoid potential issues)
+                return 0.99
+            end
+            return true
+        end
+        return false
+    end)
+    
+    return success
+end
+
+local function disablePerfectV2()
+    local success, error = pcall(function()
+        local controller = getFishingController()
+        if controller and originalGetPower then
+            controller._getPower = originalGetPower
+            originalGetPower = nil
+            return true
+        end
+        return false
+    end)
+    
+    return success
+end
 
 local autoPerfectV2Toggle = fishTab:AddToggle("AutoPerfectV2", {
     Title = "Auto Perfect V2",
@@ -1196,32 +1236,28 @@ local autoPerfectV2Toggle = fishTab:AddToggle("AutoPerfectV2", {
     Callback = function(Value)
         isAutoPerfectV2Active = Value
         if Value then
-            -- Hook into the controller's power calculation
-            spawn(function()
-                while isAutoPerfectV2Active do
-                    local success, error = pcall(function()
-                        local controller = getFishingController()
-                        if controller and controller._getPower then
-                            -- Override the power calculation
-                            local originalGetPower = controller._getPower
-                            controller._getPower = function(self)
-                                return 1 -- Maximum power for perfect result
-                            end
-                            
-                            task.wait(0.1)
-                            
-                            -- Restore original function after a short time
-                            controller._getPower = originalGetPower
-                        end
-                    end)
-                    
-                    if not success then
-                        warn("[AUTO PERFECT V2] Error: " .. tostring(error))
-                    end
-                    
-                    task.wait(1)
-                end
-            end)
+            if enablePerfectV2() then
+                Fluent:Notify({
+                    Title = "Auto Perfect V2 Enabled",
+                    Content = "Power calculation overridden for perfect results",
+                    Duration = 3
+                })
+            else
+                Options.AutoPerfectV2:SetValue(false)
+                Fluent:Notify({
+                    Title = "Auto Perfect V2 Failed",
+                    Content = "Could not override power calculation",
+                    Duration = 5
+                })
+            end
+        else
+            if disablePerfectV2() then
+                Fluent:Notify({
+                    Title = "Auto Perfect V2 Disabled",
+                    Content = "Power calculation restored to normal",
+                    Duration = 3
+                })
+            end
         end
     end
 })
