@@ -1065,10 +1065,8 @@ local function triggerPerfectClick()
     return success
 end
 
--- Fixed hook method without custom properties
-local hookedRemoteFunctions = {}
-
-local function enableAutoFishingHook()
+-- Direct charge hook method to prevent multiple calls
+local function enableDirectChargeHook()
     spawn(function()
         while isAutoPerfectV2Active do
             local success, error = pcall(function()
@@ -1079,49 +1077,36 @@ local function enableAutoFishingHook()
                     local net = netFolder.net
                     local chargeFishingRod = net:FindFirstChild("RF/ChargeFishingRod")
                     
-                    if chargeFishingRod and not hookedRemoteFunctions[chargeFishingRod] then
-                        -- Store original function in our tracking table
-                        hookedRemoteFunctions[chargeFishingRod] = {
-                            originalInvokeServer = chargeFishingRod.InvokeServer,
-                            isHooked = true
-                        }
+                    if chargeFishingRod and not chargeFishingRod._hookedByV2 then
+                        chargeFishingRod._originalInvokeServer = chargeFishingRod.InvokeServer
+                        chargeFishingRod._hookedByV2 = true
                         
-                        -- Override InvokeServer
                         chargeFishingRod.InvokeServer = function(self, ...)
                             local currentTime = tick()
                             
-                            if (currentTime - lastChargeTime) > 2 then
+                            if (currentTime - lastChargeTime) > 3 then
                                 lastChargeTime = currentTime
                                 
-                                -- Use perfect power value (same as V1)
-                                local originalFunc = hookedRemoteFunctions[chargeFishingRod].originalInvokeServer
-                                local result = originalFunc(self, 9999999999)
+                                -- Use stable server time
+                                local serverTime = workspace:GetServerTimeNow()
+                                local result = chargeFishingRod._originalInvokeServer(self, serverTime)
                                 
                                 -- Trigger perfect click after charge
                                 if not clickTriggered then
                                     clickTriggered = true
                                     spawn(function()
-                                        task.wait(0.3)
+                                        task.wait(0.2)
+                                        triggerPerfectClick()
                                         
-                                        local confirmFishingInput = _G.confirmFishingInput
-                                        if confirmFishingInput then
-                                            confirmFishingInput()
-                                            print("[AUTO PERFECT V2] Perfect release triggered")
-                                        else
-                                            -- Fallback method
-                                            triggerPerfectClick()
-                                        end
-                                        
-                                        task.wait(3)
+                                        task.wait(2)
                                         clickTriggered = false
                                     end)
                                 end
                                 
                                 return result
                             else
-                                -- Allow call but with perfect value
-                                local originalFunc = hookedRemoteFunctions[chargeFishingRod].originalInvokeServer
-                                return originalFunc(self, 9999999999)
+                                print("[AUTO PERFECT V2] Blocked duplicate charge call")
+                                return true -- Return success to prevent errors
                             end
                         end
                     end
@@ -1129,17 +1114,12 @@ local function enableAutoFishingHook()
             end)
             
             if not success then
-                warn("[AUTO PERFECT V2] Hook error: " .. tostring(error))
+                warn("[AUTO PERFECT V2] Charge hook error: " .. tostring(error))
             end
             
             task.wait(1)
         end
     end)
-end
-
--- Direct charge hook method with game AutoFishing integration
-local function enableDirectChargeHook()
-    enableAutoFishingHook()
 end
 
 -- Override method
@@ -1219,7 +1199,7 @@ local function enableSimpleScreenClick()
     end)
 end
 
--- Enhanced disable function
+-- Disable function
 local function disableOverridePerfect()
     local success, error = pcall(function()
         clickTriggered = false
@@ -1231,11 +1211,18 @@ local function disableOverridePerfect()
             originalGetPower = nil
         end
         
-        -- Restore hooked RemoteFunctions
-        for remoteFunc, hookData in pairs(hookedRemoteFunctions) do
-            if hookData.isHooked then
-                remoteFunc.InvokeServer = hookData.originalInvokeServer
-                hookedRemoteFunctions[remoteFunc] = nil
+        -- Restore original InvokeServer
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
+        
+        if netFolder and netFolder:FindFirstChild("net") then
+            local net = netFolder.net
+            local chargeFishingRod = net:FindFirstChild("RF/ChargeFishingRod")
+            
+            if chargeFishingRod and chargeFishingRod._originalInvokeServer then
+                chargeFishingRod.InvokeServer = chargeFishingRod._originalInvokeServer
+                chargeFishingRod._originalInvokeServer = nil
+                chargeFishingRod._hookedByV2 = nil
             end
         end
         
@@ -1305,8 +1292,6 @@ local function performFastFishingCycle()
     
     return success
 end
-
--- Method selector dropdown
 local perfectMethodDropdown = fishTab:AddDropdown("PerfectV2Method", {
     Title = "Perfect V2 Method",
     Description = "Choose the perfect fishing method",
@@ -1323,8 +1308,6 @@ local perfectMethodDropdown = fishTab:AddDropdown("PerfectV2Method", {
         end
     end
 })
-
--- Auto Perfect V2 Toggle
 local autoPerfectV2Toggle = fishTab:AddToggle("AutoPerfectV2", {
     Title = "Auto Perfect V2",
     Description = "Stable perfect fishing with single charge call",
@@ -1375,8 +1358,6 @@ local autoPerfectV2Toggle = fishTab:AddToggle("AutoPerfectV2", {
         end
     end
 })
-
--- Auto Fishing V2 Toggle
 local autoFishV2Toggle = fishTab:AddToggle("AutoFishingV2", {
     Title = "Auto Fishing V2",
     Description = "Fast natural fishing automation",
@@ -1395,7 +1376,6 @@ local autoFishV2Toggle = fishTab:AddToggle("AutoFishingV2", {
                 })
                 return
             end
-            
             spawn(function()
                 while isAutoFishV2Active do
                     if not isAutoFishV2Active then break end
@@ -1424,8 +1404,6 @@ local autoFishV2Toggle = fishTab:AddToggle("AutoFishingV2", {
         end
     end
 })
-
--- Fishing Delay Slider
 local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
     Title = "V2 Fishing Delay",
     Description = "Delay between fishing cycles (seconds)",
@@ -1438,37 +1416,6 @@ local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
     end
 })
 
--- Debug V2 System
-local debugV2Button = fishTab:AddButton({
-    Title = "Debug V2 System",
-    Description = "Check Auto Fishing V2 status",
-    Callback = function()
-        local controller = getFishingController()
-        local canFish, reason = canStartFishing()
-        local currentGUID = controller and controller:GetCurrentGUID() or "None"
-        
-        local debugInfo = string.format(
-            "Controller: %s\nCan Fish: %s\nReason: %s\nCurrent GUID: %s\nV2 Active: %s\nPerfect V2: %s\nMethod: %s\nLast Charge: %.1f sec ago",
-            controller and "Found" or "Not Found",
-            tostring(canFish),
-            reason or "Unknown",
-            tostring(currentGUID),
-            tostring(isAutoFishV2Active),
-            tostring(isAutoPerfectV2Active),
-            perfectV2Method,
-            tick() - lastChargeTime
-        )
-        
-        Fluent:Notify({
-            Title = "Auto Fishing V2 Debug",
-            Content = debugInfo,
-            Duration = 8
-        })
-        
-        print("[AUTO FISHING V2 DEBUG]")
-        print(debugInfo)
-    end
-})
     fishTab:AddSection("Auto Farm")
     
     local selectedFarmLocation = nil
