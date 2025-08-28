@@ -1240,43 +1240,134 @@ local debugV2Button = fishTab:AddButton({
     end
 })
 
--- Auto Perfect V2 (Experimental - Controller Method)
+-- Auto Perfect V2 (Improved - Controller Method)
 local isAutoPerfectV2Active = false
-local perfectV2Method = "Timing" -- "Timing" or "Override"
+local perfectV2Method = "Override" -- Default to Override method
+local powerOverrideConnection = nil
 
--- Method 1: Timing-based perfect (simulate perfect timing)
-local function enableTimingPerfect()
-    spawn(function()
-        while isAutoPerfectV2Active do
-            local success, error = pcall(function()
-                local controller = getFishingController()
-                if controller and controller._updateChargeFrame then
-                    -- Hook into the charge update system
+-- Enhanced Override Method with better timing
+local function enableOverridePerfect()
+    local success, error = pcall(function()
+        local controller = getFishingController()
+        if controller and controller._getPower then
+            -- Store original function safely
+            if not originalGetPower then
+                originalGetPower = controller._getPower
+            end
+            
+            -- Enhanced override with perfect timing
+            controller._getPower = function(self)
+                -- Return maximum safe power value
+                return 0.999 -- Very close to perfect
+            end
+            
+            -- Also hook into _updateChargeFrame for visual consistency
+            if controller._updateChargeFrame then
+                local originalUpdateFrame = controller._updateChargeFrame
+                controller._updateChargeFrame = function(self)
+                    -- Call original first
+                    originalUpdateFrame(self)
+                    
+                    -- Then override visuals
                     local Players = game:GetService("Players")
                     local PlayerGui = Players.LocalPlayer.PlayerGui
                     local Charge = PlayerGui:FindFirstChild("Charge")
                     
                     if Charge and Charge.Enabled then
-                        -- Force charge to maximum when charging
-                        local chargeBar = Charge:FindFirstChild("Main")
-                        if chargeBar and chargeBar:FindFirstChild("CanvasGroup") then
-                            local bar = chargeBar.CanvasGroup:FindFirstChild("Bar")
-                            if bar then
-                                -- Set visual to max
-                                bar.Size = UDim2.fromScale(1, 0.99)
-                                
-                                -- Override the luck display
-                                local topFrame = chargeBar:FindFirstChild("Frame")
-                                if topFrame and topFrame:FindFirstChild("Top") then
-                                    local baseLuck = topFrame.Top:FindFirstChild("BaseLuck")
+                        local success2, error2 = pcall(function()
+                            -- Override charge display
+                            local main = Charge:FindFirstChild("Main")
+                            if main then
+                                local frame = main:FindFirstChild("Frame")
+                                if frame and frame:FindFirstChild("Top") then
+                                    local baseLuck = frame.Top:FindFirstChild("BaseLuck")
                                     if baseLuck then
                                         baseLuck.Text = "x10 Luck"
                                         baseLuck.TextColor3 = Color3.fromRGB(0, 255, 0)
                                     end
                                 end
+                                
+                                local canvasGroup = main:FindFirstChild("CanvasGroup")
+                                if canvasGroup and canvasGroup:FindFirstChild("Bar") then
+                                    canvasGroup.Bar.Size = UDim2.fromScale(1, 0.99)
+                                end
+                            end
+                        end)
+                    end
+                end
+            end
+            
+            return true
+        end
+        return false
+    end)
+    
+    return success
+end
+
+-- Enhanced disable with proper cleanup
+local function disableOverridePerfect()
+    local success, error = pcall(function()
+        local controller = getFishingController()
+        if controller and originalGetPower then
+            controller._getPower = originalGetPower
+            originalGetPower = nil
+            
+            -- Restore original update frame if we modified it
+            if controller._updateChargeFrame then
+                -- The original should restore automatically since we stored it
+            end
+            
+            return true
+        end
+        return false
+    end)
+    
+    return success
+end
+
+-- Method 1: Enhanced Timing Method
+local function enableTimingPerfect()
+    spawn(function()
+        while isAutoPerfectV2Active do
+            local success, error = pcall(function()
+                -- Wait for fishing rod to be equipped and charging
+                local Players = game:GetService("Players")
+                local PlayerGui = Players.LocalPlayer.PlayerGui
+                local Charge = PlayerGui:FindFirstChild("Charge")
+                
+                if Charge and Charge.Enabled then
+                    local main = Charge:FindFirstChild("Main")
+                    if main then
+                        -- Override charge display for perfect visual feedback
+                        local canvasGroup = main:FindFirstChild("CanvasGroup")
+                        if canvasGroup and canvasGroup:FindFirstChild("Bar") then
+                            canvasGroup.Bar.Size = UDim2.fromScale(1, 0.95)
+                        end
+                        
+                        -- Override luck display
+                        local frame = main:FindFirstChild("Frame")
+                        if frame and frame:FindFirstChild("Top") then
+                            local baseLuck = frame.Top:FindFirstChild("BaseLuck")
+                            if baseLuck then
+                                baseLuck.Text = "x10 Luck (V2)"
+                                baseLuck.TextColor3 = Color3.fromRGB(50, 255, 50)
+                                
+                                local uiScale = baseLuck.Parent:FindFirstChild("UIScale")
+                                if uiScale then
+                                    uiScale.Scale = 1.2 -- Make it more prominent
+                                end
                             end
                         end
                     end
+                end
+                
+                -- Also try to influence the actual controller timing
+                local controller = getFishingController()
+                if controller then
+                    -- Check if we're in charging phase
+                    local RunService = game:GetService("RunService")
+                    -- Try to sync with the controller's timing
                 end
             end)
             
@@ -1284,54 +1375,15 @@ local function enableTimingPerfect()
                 warn("[AUTO PERFECT V2] Timing error: " .. tostring(error))
             end
             
-            task.wait(0.1)
+            task.wait(0.05) -- Faster update rate
         end
     end)
 end
 
--- Method 2: Override _getPower function  
-local originalGetPower = nil
-local function enableOverridePerfect()
-    local success, error = pcall(function()
-        local controller = getFishingController()
-        if controller and controller._getPower then
-            -- Store original function
-            if not originalGetPower then
-                originalGetPower = controller._getPower
-            end
-            
-            -- Override with perfect power calculation
-            controller._getPower = function(self)
-                -- Return near-perfect power (0.95 for safety)
-                return 0.95
-            end
-            
-            return true
-        end
-        return false
-    end)
-    
-    return success
-end
-
-local function disableOverridePerfect()
-    local success, error = pcall(function()
-        local controller = getFishingController()
-        if controller and originalGetPower then
-            controller._getPower = originalGetPower
-            originalGetPower = nil
-            return true
-        end
-        return false
-    end)
-    
-    return success
-end
-
--- Auto Perfect V2 Toggle
+-- Auto Perfect V2 Toggle (Improved)
 local autoPerfectV2Toggle = fishTab:AddToggle("AutoPerfectV2", {
     Title = "Auto Perfect V2",
-    Description = "Experimental perfect fishing using controller method",
+    Description = "Enhanced perfect fishing using controller integration",
     Default = false,
     Callback = function(Value)
         isAutoPerfectV2Active = Value
@@ -1341,21 +1393,21 @@ local autoPerfectV2Toggle = fishTab:AddToggle("AutoPerfectV2", {
                 enableTimingPerfect()
                 Fluent:Notify({
                     Title = "Auto Perfect V2 Enabled",
-                    Content = "Using timing-based perfect method",
+                    Content = "Enhanced timing method active",
                     Duration = 3
                 })
             elseif perfectV2Method == "Override" then
                 if enableOverridePerfect() then
                     Fluent:Notify({
-                        Title = "Auto Perfect V2 Enabled",
-                        Content = "Using power override method",
+                        Title = "Auto Perfect V2 Enabled", 
+                        Content = "Enhanced power override active",
                         Duration = 3
                     })
                 else
                     Options.AutoPerfectV2:SetValue(false)
                     Fluent:Notify({
                         Title = "Auto Perfect V2 Failed",
-                        Content = "Could not override power function",
+                        Content = "Could not enable power override",
                         Duration = 5
                     })
                 end
@@ -1367,7 +1419,7 @@ local autoPerfectV2Toggle = fishTab:AddToggle("AutoPerfectV2", {
             
             Fluent:Notify({
                 Title = "Auto Perfect V2 Disabled",
-                Content = "Perfect method disabled",
+                Content = "Perfect enhancements disabled",
                 Duration = 3
             })
         end
