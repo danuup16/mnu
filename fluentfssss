@@ -2,7 +2,7 @@ local Fluent = loadstring(game:HttpGet("https://raw.githubusercontent.com/danuup
 local HttpService = game:GetService("HttpService")
 local AutoConfig = {} do
     AutoConfig.FolderName = "DJSTest"
-    AutoConfig.ConfigFile = "DJS.json"
+    AutoConfig.ConfigFile = "DJSikan.json"
     AutoConfig.Library = nil
     AutoConfig.LastSaveTime = 0
     AutoConfig.IsMonitoring = false
@@ -197,7 +197,7 @@ local Window = Fluent:CreateWindow({
     Title = "#DJSTEST - FISH IT V.0.6",
     SubTitle = "https://discord.gg/uwXYuxj6cF",
     TabWidth = 160,
-    Size = UDim2.fromOffset(680, 560),
+    Size = UDim2.fromOffset(480, 360),
     Transparency = true,
     Theme = "Dark",
     MinimizeKey = Enum.KeyCode.F
@@ -206,12 +206,11 @@ local Window = Fluent:CreateWindow({
 -- addTabs
 local Tabs = {
     Info = Window:AddTab({ Title = "Info Script", Icon = "info" }),
-    Player = Window:AddTab({ Title = "Player", Icon = "user-round-cog" }),
+    Player = Window:AddTab({ Title = "Player", Icon = "user-cog" }),
     Fishing = Window:AddTab({ Title = "Fishing", Icon = "fish" }),
     Teleport = Window:AddTab({ Title = "Teleport", Icon = "map-pin" }),
     Buy = Window:AddTab({ Title = "Buy", Icon = "shopping-cart" }),
     Webhook = Window:AddTab({ Title = "Webhook", Icon = "bell-ring" }),
-    ESP = Window:AddTab({ Title = "ESP", Icon = "eye" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
@@ -248,28 +247,18 @@ end
 -- Info Tab
 do
     Tabs.Info:AddButton({
-        Title = "New Discord Server",
-        Description = "Copy Discord invite link",
+        Title = "Discord Server",
+        Description = "Discord invite link",
         Callback = function()
             setclipboard("https://discord.gg/uwXYuxj6cF")
-            Fluent:Notify({
-                Title = "Copied to clipboard",
-                Content = "Discord link copied!",
-                Duration = 5
-            })
         end
     })
     
     Tabs.Info:AddButton({
         Title = "Tiktok",
-        Description = "Copy Tiktok profile link",
+        Description = "Tiktok profile link",
         Callback = function()
             setclipboard("https://www.tiktok.com/@daanujs_")
-            Fluent:Notify({
-                Title = "Copied to clipboard",
-                Content = "Tiktok link copied!",
-                Duration = 5
-            })
         end
     })
 end
@@ -668,18 +657,8 @@ do
                     if setupAutoTrade() then
                         isAutoTradeActive = true
                         isAutoGiveActive = true
-                        Fluent:Notify({
-                            Title = "Auto Trade Enabled",
-                            Content = "Will automatically accept all trades",
-                            Duration = 3
-                        })
                     else
                         Options.AutoTrade:SetValue(false)
-                        Fluent:Notify({
-                            Title = "Auto Trade Failed",
-                            Content = "Failed to setup auto trade system",
-                            Duration = 5
-                        })
                     end
                 end
             else
@@ -687,11 +666,6 @@ do
                     isAutoTradeActive = false
                     isAutoGiveActive = false
                     disableAutoTrade()
-                    Fluent:Notify({
-                        Title = "Auto Trade Disabled",
-                        Content = "Auto trade system disabled",
-                        Duration = 3
-                    })
                 end
             end
         end
@@ -962,11 +936,6 @@ do
                     local sellAllItems = net:FindFirstChild("RF/SellAllItems")
                     if sellAllItems then
                         sellAllItems:InvokeServer()
-                        Fluent:Notify({
-                            Title = "Success",
-                            Content = "All fish sold!",
-                            Duration = 3
-                        })
                     end
                 end
             end)
@@ -975,447 +944,6 @@ do
             end
         end
     })
-    
--- Auto Fishing V2 - Fixed Complete Version
-local isAutoFishV2Active = false
-local fishingV2DelayTime = 1
-local fishingControllerModule = nil
-local isAutoPerfectV2Active = false
-local perfectV2Method = "Direct"
-local clickTriggered = false
-local lastChargeTime = 0
-local originalGetPower = nil
-
--- Function to get the FishingController module
-local function getFishingController()
-    if fishingControllerModule then
-        return fishingControllerModule
-    end
-    
-    local success, result = pcall(function()
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local Controllers = ReplicatedStorage:FindFirstChild("Controllers")
-        if Controllers then
-            local FishingController = Controllers:FindFirstChild("FishingController")
-            if FishingController then
-                return require(FishingController)
-            end
-        end
-        return nil
-    end)
-    
-    if success and result then
-        fishingControllerModule = result
-        return fishingControllerModule
-    end
-    
-    return nil
-end
-
--- Function to check if we can start fishing
-local function canStartFishing()
-    local controller = getFishingController()
-    if not controller then
-        return false, "Controller not found"
-    end
-    
-    local success, result = pcall(function()
-        return not controller:OnCooldown()
-    end)
-    
-    if success then
-        return result, result and "Ready" or "On cooldown"
-    end
-    
-    return false, "Error checking cooldown"
-end
-
--- Simple click trigger method
-local function triggerPerfectClick()
-    local success, error = pcall(function()
-        -- Method 1: Try _G.confirmFishingInput
-        local confirmFishingInput = _G.confirmFishingInput
-        if confirmFishingInput then
-            confirmFishingInput()
-            print("[AUTO PERFECT V2] Click triggered via confirmFishingInput")
-            return true
-        end
-        
-        -- Method 2: Try VirtualInputManager
-        local VirtualInputManager = game:GetService("VirtualInputManager")
-        local camera = workspace.CurrentCamera
-        local screenCenter = Vector2.new(
-            camera.ViewportSize.X / 2,
-            camera.ViewportSize.Y / 2
-        )
-        
-        VirtualInputManager:SendMouseButtonEvent(screenCenter.X, screenCenter.Y, 0, true, game, 1)
-        task.wait(0.1)
-        VirtualInputManager:SendMouseButtonEvent(screenCenter.X, screenCenter.Y, 0, false, game, 1)
-        
-        print("[AUTO PERFECT V2] Click triggered via VirtualInputManager")
-        return true
-    end)
-    
-    if not success then
-        warn("[AUTO PERFECT V2] Click trigger error: " .. tostring(error))
-        return false
-    end
-    
-    return success
-end
-
--- Direct charge hook method to prevent multiple calls
-local function enableDirectChargeHook()
-    spawn(function()
-        while isAutoPerfectV2Active do
-            local success, error = pcall(function()
-                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
-                
-                if netFolder and netFolder:FindFirstChild("net") then
-                    local net = netFolder.net
-                    local chargeFishingRod = net:FindFirstChild("RF/ChargeFishingRod")
-                    
-                    if chargeFishingRod and not chargeFishingRod._hookedByV2 then
-                        chargeFishingRod._originalInvokeServer = chargeFishingRod.InvokeServer
-                        chargeFishingRod._hookedByV2 = true
-                        
-                        chargeFishingRod.InvokeServer = function(self, ...)
-                            local currentTime = tick()
-                            
-                            if (currentTime - lastChargeTime) > 3 then
-                                lastChargeTime = currentTime
-                                
-                                -- Use stable server time
-                                local serverTime = workspace:GetServerTimeNow()
-                                local result = chargeFishingRod._originalInvokeServer(self, serverTime)
-                                
-                                -- Trigger perfect click after charge
-                                if not clickTriggered then
-                                    clickTriggered = true
-                                    spawn(function()
-                                        task.wait(0.2)
-                                        triggerPerfectClick()
-                                        
-                                        task.wait(2)
-                                        clickTriggered = false
-                                    end)
-                                end
-                                
-                                return result
-                            else
-                                print("[AUTO PERFECT V2] Blocked duplicate charge call")
-                                return true -- Return success to prevent errors
-                            end
-                        end
-                    end
-                end
-            end)
-            
-            if not success then
-                warn("[AUTO PERFECT V2] Charge hook error: " .. tostring(error))
-            end
-            
-            task.wait(1)
-        end
-    end)
-end
-
--- Override method
-local function enableOverridePerfect()
-    local success, error = pcall(function()
-        local controller = getFishingController()
-        if controller and controller._getPower then
-            if not originalGetPower then
-                originalGetPower = controller._getPower
-            end
-            
-            controller._getPower = function(self)
-                local currentTime = tick()
-                
-                if not clickTriggered and (currentTime - lastChargeTime) > 2 then
-                    clickTriggered = true
-                    lastChargeTime = currentTime
-                    
-                    spawn(function()
-                        task.wait(0.15)
-                        triggerPerfectClick()
-                        
-                        task.wait(3)
-                        clickTriggered = false
-                    end)
-                end
-                
-                return 1.0
-            end
-            
-            return true
-        end
-        return false
-    end)
-    
-    return success
-end
-
--- Screen click method
-local function enableSimpleScreenClick()
-    spawn(function()
-        while isAutoPerfectV2Active do
-            local success, error = pcall(function()
-                local Players = game:GetService("Players")
-                local PlayerGui = Players.LocalPlayer.PlayerGui
-                local Charge = PlayerGui:FindFirstChild("Charge")
-                
-                if Charge and Charge.Enabled and not clickTriggered then
-                    local main = Charge:FindFirstChild("Main")
-                    if main then
-                        local canvasGroup = main:FindFirstChild("CanvasGroup")
-                        if canvasGroup and canvasGroup:FindFirstChild("Bar") then
-                            local bar = canvasGroup.Bar
-                            
-                            if bar.Size.Y.Scale >= 0.95 then
-                                clickTriggered = true
-                                
-                                task.wait(0.05)
-                                triggerPerfectClick()
-                                
-                                spawn(function()
-                                    task.wait(3)
-                                    clickTriggered = false
-                                end)
-                            end
-                        end
-                    end
-                end
-            end)
-            
-            if not success then
-                warn("[AUTO PERFECT V2] Screen click error: " .. tostring(error))
-            end
-            
-            task.wait(0.05)
-        end
-    end)
-end
-
--- Disable function
-local function disableOverridePerfect()
-    local success, error = pcall(function()
-        clickTriggered = false
-        lastChargeTime = 0
-        
-        local controller = getFishingController()
-        if controller and originalGetPower then
-            controller._getPower = originalGetPower
-            originalGetPower = nil
-        end
-        
-        -- Restore original InvokeServer
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
-        
-        if netFolder and netFolder:FindFirstChild("net") then
-            local net = netFolder.net
-            local chargeFishingRod = net:FindFirstChild("RF/ChargeFishingRod")
-            
-            if chargeFishingRod and chargeFishingRod._originalInvokeServer then
-                chargeFishingRod.InvokeServer = chargeFishingRod._originalInvokeServer
-                chargeFishingRod._originalInvokeServer = nil
-                chargeFishingRod._hookedByV2 = nil
-            end
-        end
-        
-        return true
-    end)
-    
-    return success
-end
-
--- Fast fishing cycle
-local function performFastFishingCycle()
-    local success, error = pcall(function()
-        local controller = getFishingController()
-        if not controller then
-            warn("[AUTO FISHING V2] Controller not found")
-            return false
-        end
-        
-        local Players = game:GetService("Players")
-        local camera = workspace.CurrentCamera
-        
-        local screenCenter = Vector2.new(
-            camera.ViewportSize.X / 2,
-            camera.ViewportSize.Y / 2
-        )
-        
-        local canFish, reason = canStartFishing()
-        if not canFish then
-            warn("[AUTO FISHING V2] Cannot fish: " .. reason)
-            return false
-        end
-        
-        controller:RequestChargeFishingRod(screenCenter, true, true)
-        
-        local waitTime = 0
-        local maxWait = 8
-        
-        while waitTime < maxWait and isAutoFishV2Active do
-            local currentGUID = controller:GetCurrentGUID()
-            if currentGUID then
-                for i = 1, 5 do
-                    controller:RequestFishingMinigameClick()
-                    task.wait(0.02)
-                end
-                
-                task.wait(0.2)
-                if not controller:GetCurrentGUID() then
-                    break
-                end
-            else
-                task.wait(0.1)
-                waitTime = waitTime + 0.1
-                
-                if waitTime > 1 then
-                    break
-                end
-            end
-        end
-        
-        return true
-    end)
-    
-    if not success then
-        warn("[AUTO FISHING V2] Error in fishing cycle: " .. tostring(error))
-        return false
-    end
-    
-    return success
-end
-local perfectMethodDropdown = fishTab:AddDropdown("PerfectV2Method", {
-    Title = "Perfect V2 Method",
-    Description = "Choose the perfect fishing method",
-    Values = {"Override", "Screen", "Direct"},
-    Multi = false,
-    Default = 3,
-    Callback = function(Value)
-        perfectV2Method = Value
-        
-        if isAutoPerfectV2Active then
-            Options.AutoPerfectV2:SetValue(false)
-            task.wait(0.5)
-            Options.AutoPerfectV2:SetValue(true)
-        end
-    end
-})
-local autoPerfectV2Toggle = fishTab:AddToggle("AutoPerfectV2", {
-    Title = "Auto Perfect V2",
-    Description = "Stable perfect fishing with single charge call",
-    Default = false,
-    Callback = function(Value)
-        isAutoPerfectV2Active = Value
-        clickTriggered = false
-        lastChargeTime = 0
-        
-        if Value then
-            if perfectV2Method == "Override" then
-                if enableOverridePerfect() then
-                    Fluent:Notify({
-                        Title = "Auto Perfect V2 Enabled", 
-                        Content = "Power override method active",
-                        Duration = 3
-                    })
-                else
-                    Options.AutoPerfectV2:SetValue(false)
-                    Fluent:Notify({
-                        Title = "Auto Perfect V2 Failed",
-                        Content = "Could not enable power override",
-                        Duration = 5
-                    })
-                end
-            elseif perfectV2Method == "Screen" then
-                enableSimpleScreenClick()
-                Fluent:Notify({
-                    Title = "Auto Perfect V2 Enabled",
-                    Content = "Screen click method active",
-                    Duration = 3
-                })
-            elseif perfectV2Method == "Direct" then
-                enableDirectChargeHook()
-                Fluent:Notify({
-                    Title = "Auto Perfect V2 Enabled",
-                    Content = "Direct charge hook method active",
-                    Duration = 3
-                })
-            end
-        else
-            disableOverridePerfect()
-            Fluent:Notify({
-                Title = "Auto Perfect V2 Disabled",
-                Content = "Perfect method disabled",
-                Duration = 3
-            })
-        end
-    end
-})
-local autoFishV2Toggle = fishTab:AddToggle("AutoFishingV2", {
-    Title = "Auto Fishing V2",
-    Description = "Fast natural fishing automation",
-    Default = false,
-    Callback = function(Value)
-        isAutoFishV2Active = Value
-        
-        if Value then
-            local controller = getFishingController()
-            if not controller then
-                Options.AutoFishingV2:SetValue(false)
-                Fluent:Notify({
-                    Title = "Auto Fishing V2 Failed",
-                    Content = "Could not access fishing controller",
-                    Duration = 5
-                })
-                return
-            end
-            spawn(function()
-                while isAutoFishV2Active do
-                    if not isAutoFishV2Active then break end
-                    
-                    local cycleSuccess = performFastFishingCycle()
-                    
-                    local delayTime = isAutoPerfectV2Active and 1 or fishingV2DelayTime
-                    for i = 1, delayTime * 10 do
-                        if not isAutoFishV2Active then break end
-                        task.wait(0.1)
-                    end
-                end
-            end)
-            
-            Fluent:Notify({
-                Title = "Auto Fishing V2 Started",
-                Content = "Fast fishing automation active",
-                Duration = 3
-            })
-        else
-            Fluent:Notify({
-                Title = "Auto Fishing V2 Stopped",
-                Content = "Fishing automation disabled",
-                Duration = 3
-            })
-        end
-    end
-})
-local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
-    Title = "V2 Fishing Delay",
-    Description = "Delay between fishing cycles (seconds)",
-    Default = 1,
-    Min = 0.5,
-    Max = 5,
-    Rounding = 0.1,
-    Callback = function(Value)
-        fishingV2DelayTime = Value
-    end
-})
-
     fishTab:AddSection("Auto Farm")
     
     local selectedFarmLocation = nil
@@ -1456,6 +984,7 @@ local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
         },
         Multi = false,
         Default = 1,
+        Searchable = true,
         Callback = function(Value)
             selectedFarmLocation = Value
         end
@@ -1463,11 +992,6 @@ local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
 
     local function startAutoFarm()
         if not selectedFarmLocation then
-            Fluent:Notify({
-                Title = "Error",
-                Content = "Please select a location first!",
-                Duration = 5
-            })
             return false
         end
         local player = game.Players.LocalPlayer
@@ -1480,13 +1004,6 @@ local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
             wait(2)
             Options.AutoFishing:SetValue(true)
             Options.NoClip:SetValue(true)
-            
-            Fluent:Notify({
-                Title = "Auto Farm Started",
-                Content = "Farming at " .. selectedFarmLocation,
-                Duration = 3
-            })
-            
             spawn(function()
                 while isAutoFarmActive do
                     wait(5)
@@ -1510,12 +1027,6 @@ local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
         isAutoFarmActive = false
         Options.AutoFishing:SetValue(false)
         Options.NoClip:SetValue(false)
-        
-        Fluent:Notify({
-            Title = "Auto Farm Stopped",
-            Content = "Farming has been disabled",
-            Duration = 3
-        })
     end
 
     local farmToggle = fishTab:AddToggle("StartFarm", {
@@ -1594,12 +1105,6 @@ do
             local targetPosition = targetPlayer.Character.HumanoidRootPart.Position
             local offsetPosition = targetPosition + Vector3.new(math.random(-5, 5), 0, math.random(-5, 5))
             localPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(offsetPosition)
-            
-            Fluent:Notify({
-                Title = "Teleported",
-                Content = "Teleported to " .. playerName,
-                Duration = 3
-            })
         end)
     end
 
@@ -1616,6 +1121,7 @@ do
         end)() or {"Select a player...", "No players available"},
         Multi = false,
         Default = 1,
+        Searchable = true,
         Callback = function(Value)
             if Value == "Select a player..." or Value == "No players available" then
                 return
@@ -1642,11 +1148,6 @@ do
         Description = "Update the list of available players",
         Callback = function()
             updatePlayerDropdown()
-            Fluent:Notify({
-                Title = "Player List Updated",
-                Content = "Player list refreshed!",
-                Duration = 2
-            })
         end
     })
 
@@ -1673,6 +1174,7 @@ do
         },
         Multi = false,
         Default = 1,
+        Searchable = true,
         Callback = function(Value)
             if Value == "Select Island..." then
                 return
@@ -1692,19 +1194,12 @@ do
                 ["Esoteric Island"] = CFrame.new(2061.76196, 35.6500702, 1380.32703, 1, 0, 0, 0, 1, 0, 0, 0, 1),
                 ["Crater Island"] = CFrame.new(976.711548, -5.2534189, 4886.73242, 0.173624337, -0, -0.984811902, 0, 1, -0, 0.984811902, 0, 0.173624337),
                 ["Coral Reefs"] = CFrame.new(-3120.34644, 16.9453125, 2181.97144, 0.707134247, -0, -0.707079291, 0, 1, -0, 0.707079291, 0, 0.707134247),
-                ["Stingray Shores"] = CFrame.new(21.25, 7.74999809, 2883.3125, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                ["Stingray Shores"] = CFrame.new(32.029018, 9.784778, 2813.289551, 0.980407, -0.000000, 0.196984, 0.000000, 1.000000, -0.000000, -0.196984, 0.000000, 0.980407),
                 ["Ocean"] = CFrame.new(1609.45593, 7.993308318, 3279.21533, 0.499959469, 0, 0.866048813, 0, 1, 0, -0.866048813, 0, 0.499959469),
                 ["Esoteric Depths"] = CFrame.new(3054.9707, -1288.35474, 1483.97412, 0.90629667, 0, 0.422642082, 0, 1, 0, -0.422642082, 0, 0.90629667)
             }
             if locations[Value] then
                 player.Character.HumanoidRootPart.CFrame = locations[Value]
-                Fluent:Notify({
-                    Title = "Teleported",
-                    Content = "Teleported to " .. Value,
-                    Duration = 3
-                })
-                
-                -- Reset to default after teleport
                 spawn(function()
                     wait(0.1)
                     Options.TeleportIsland:SetValue("Select Island...")
@@ -1732,6 +1227,7 @@ do
         },
         Multi = false,
         Default = 1,
+        Searchable = true,
         Callback = function(Value)
             if Value == "Select NPC..." then
                 return
@@ -1743,25 +1239,18 @@ do
             end
             
             local npcLocations = {
-                ["Alex - Sell Fish"] = CFrame.new(-31.029264, 4.500001, 2890.095947, -0.997203, 0.000000, 0.074746, 0.000000, 1.000000, -0.000000, -0.074746, -0.000000, -0.997203),
-                ["Billy Bob - Rod Skin"] = CFrame.new(64.524055, 29.000002, 2950.265869, 0.012369, -0.000000, -0.999923, -0.000000, 1.000000, -0.000000, 0.999923, 0.000000, 0.012369),
+                ["Alex - Sell Fish"] = CFrame.new(48.656158, 17.071970, 2868.007812, -0.997883, 0.000000, 0.065036, 0.000000, 1.000000, -0.000000, -0.065036, -0.000000, -0.997883),
+                ["Billy Bob - Rod Skin"] = CFrame.new(80.990456, 17.071970, 2869.381348, -0.958304, 0.000000, 0.285750, 0.000000, 1.000000, -0.000000, -0.285750, -0.000000, -0.958304),
                 ["Boat Expert - Boat Shop"] = CFrame.new(22.869276, 4.045772, 2810.912354, 0.999303, -0.000000, 0.037339, 0.000000, 1.000000, 0.000000, -0.037339, -0.000000, 0.999303),
-                ["Joe - Rod Shop"] = CFrame.new(114.716515, 4.750001, 2876.207275, -0.999499, -0.000000, 0.031645, -0.000000, 1.000000, 0.000000, -0.031645, 0.000000, -0.999499),
+                ["Joe - Rod Shop"] = CFrame.new(142.136551, 20.459019, 2855.692871, -0.993222, 0.000000, -0.116233, 0.000000, 1.000000, -0.000000, 0.116233, -0.000000, -0.993222),
                 ["Scientist - Lucky Potion"] = CFrame.new(-7.974049, 4.500001, 2844.862305, -0.999788, -0.000000, -0.020568, -0.000000, 1.000000, 0.000000, 0.020568, 0.000000, -0.999788),
                 ["Scoot - Boat Shop"] = CFrame.new(-75.6783218, 4.74903107, 2867.15674, 0.305231869, -2.02933879e-05, 0.952278197, 0.000808718964, 0.999999642, -0.000237909742, -0.952277839, 0.000842742971, 0.30523181),
-                ["Seth - Bait Shop"] = CFrame.new(71.385483, 4.561694, 2888.099121, -0.996477, -0.000000, -0.083868, -0.000000, 1.000000, -0.000000, 0.083868, -0.000000, -0.996477),
+                ["Seth - Bait Shop"] = CFrame.new(112.343651, 17.071970, 2869.337402, -0.953610, 0.000000, 0.301044, -0.000000, 1.000000, -0.000000, -0.301044, -0.000000, -0.953610),
                 ["Silly Fisherman"] = CFrame.new(90.683128, 27.244699, 3005.096436, -0.739958, 0.000000, -0.672653, 0.000000, 1.000000, 0.000000, 0.672653, 0.000000, -0.739958)
             }
             
             if npcLocations[Value] then
                 player.Character.HumanoidRootPart.CFrame = npcLocations[Value]
-                Fluent:Notify({
-                    Title = "Teleported",
-                    Content = "Teleported to " .. Value,
-                    Duration = 3
-                })
-                
-                -- Reset to default after teleport
                 spawn(function()
                     wait(0.1)
                     Options.TeleportNPC:SetValue("Select NPC...")
@@ -1925,6 +1414,7 @@ do
         end)() or {"Select Event...", "No events detected"},
         Multi = false,
         Default = 1,
+        Searchable = true,
         Callback = function(Value)
             if Value == "Select Event..." or Value == "No events detected" then
                 return
@@ -1950,28 +1440,13 @@ do
                 if Options.FlyToggle then
                     Options.FlyToggle:SetValue(true)
                 end
-                
-                Fluent:Notify({
-                    Title = "Teleported to Event",
-                    Content = "Teleported to " .. selectedEvent,
-                    Duration = 3
-                })
-                
-                -- Reset to default after teleport
                 spawn(function()
                     wait(0.1)
                     Options.EventTeleport:SetValue("Select Event...")
                 end)
-            else
-                Fluent:Notify({
-                    Title = "Error",
-                    Content = "Could not find coordinates for this event",
-                    Duration = 3
-                })
             end
         end
     })
-
     local refreshEventsButton = teleportTab:AddButton({
         Title = "Refresh Events",
         Description = "Scan for currently active events",
@@ -1991,12 +1466,6 @@ do
                         activeCount = activeCount + 1
                     end
                 end
-                
-                Fluent:Notify({
-                    Title = "Events Refreshed",
-                    Content = activeCount .. " active events found",
-                    Duration = 3
-                })
             end
         end
     })
@@ -2006,11 +1475,6 @@ do
         Description = "Teleport to the selected event location",
         Callback = function()
             if not selectedEvent or selectedEvent == "No active events" or selectedEvent == "Error detecting events" then
-                Fluent:Notify({
-                    Title = "No Event Selected",
-                    Content = "Please select an active event first!",
-                    Duration = 3
-                })
                 return
             end
             
@@ -2031,19 +1495,23 @@ do
                 if Options.FlyToggle then
                     Options.FlyToggle:SetValue(true)
                 end
-                
-                Fluent:Notify({
-                    Title = "Teleported to Event",
-                    Content = "Teleported to " .. selectedEvent,
-                    Duration = 3
-                })
-            else
-                Fluent:Notify({
-                    Title = "Error",
-                    Content = "Could not find coordinates for this event",
-                    Duration = 3
-                })
             end
+        end
+    })
+    local copycords = teleportTab:AddButton({
+        Title = "Copy Coords",
+        Description = "copy coords",
+        Callback = function()
+                    local player = game.Players.LocalPlayer
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local pos = player.Character.HumanoidRootPart.CFrame
+            -- Format ke string
+            local coordsString = string.format(
+                "CFrame.new(%.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f)",
+                pos:GetComponents()
+            )
+            setclipboard(coordsString)
+        end
         end
     })
 end
@@ -2065,6 +1533,7 @@ do
         },
         Multi = false,
         Default = 1,
+        Searchable = true,
         Callback = function(Value)
             if Value == "Select Weather..." then
                 return
@@ -2092,18 +1561,8 @@ do
                         local buyWeather = net:FindFirstChild("RF/PurchaseWeatherEvent")
                         if buyWeather then
                             buyWeather:InvokeServer(weatherName)
-                            Fluent:Notify({
-                                Title = "Weather Purchased",
-                                Content = "Purchased " .. weatherName .. "!",
-                                Duration = 3
-                            })
                         else
                             warn("PurchaseWeatherEvent not found!")
-                            Fluent:Notify({
-                                Title = "Error",
-                                Content = "Weather purchase failed!",
-                                Duration = 3
-                            })
                         end
                     end
                 end)
@@ -2142,6 +1601,7 @@ do
         },
         Multi = false,
         Default = 1,
+        Searchable = true,
         Callback = function(Value)
             if Value == "Select Rod..." then
                 return
@@ -2181,18 +1641,8 @@ do
                         local buyRod = net:FindFirstChild("RF/PurchaseFishingRod")
                         if buyRod then
                             buyRod:InvokeServer(rodId)
-                            Fluent:Notify({
-                                Title = "Rod Purchased",
-                                Content = "Purchased " .. rodName .. "!",
-                                Duration = 3
-                            })
                         else
                             warn("PurchaseFishingRod not found!")
-                            Fluent:Notify({
-                                Title = "Error",
-                                Content = "Rod purchase failed!",
-                                Duration = 3
-                            })
                         end
                     end
                 end)
@@ -2225,6 +1675,7 @@ do
         },
         Multi = false,
         Default = 1,
+        Searchable = true,
         Callback = function(Value)
             if Value == "Select Bait..." then
                 return
@@ -2256,18 +1707,8 @@ do
                         local buyBait = net:FindFirstChild("RF/PurchaseBait")
                         if buyBait then
                             buyBait:InvokeServer(baitId)
-                            Fluent:Notify({
-                                Title = "Bait Purchased",
-                                Content = "Purchased " .. baitName .. "!",
-                                Duration = 3
-                            })
                         else
                             warn("PurchaseBait not found!")
-                            Fluent:Notify({
-                                Title = "Error", 
-                                Content = "Bait purchase failed!",
-                                Duration = 3
-                            })
                         end
                     end
                 end)
@@ -2285,90 +1726,6 @@ do
         end
     })
     
-    -- Quick Purchase Buttons Section
-    buyTab:AddSection("Quick Purchase")
-    
-    local quickBuyButtons = {
-        {
-            title = "Buy Lucky Rod Pro",
-            description = "Quick purchase Lucky Rod Pro (15,000)",
-            id = 4,
-            type = "rod"
-        },
-        {
-            title = "Buy Lucky Bait x10",
-            description = "Quick purchase 10x Lucky Bait",
-            id = 2,
-            type = "bait"
-        },
-        {
-            title = "Buy Storm Weather",
-            description = "Quick purchase Storm weather (35,000)",
-            name = "Storm",
-            type = "weather"
-        }
-    }
-    
-    for _, item in pairs(quickBuyButtons) do
-        buyTab:AddButton({
-            Title = item.title,
-            Description = item.description,
-            Callback = function()
-                local success, error = pcall(function()
-                    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                    local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
-                    if netFolder and netFolder:FindFirstChild("net") then
-                        local net = netFolder.net
-                        
-                        if item.type == "rod" then
-                            local buyRod = net:FindFirstChild("RF/PurchaseFishingRod")
-                            if buyRod then
-                                buyRod:InvokeServer(item.id)
-                                Fluent:Notify({
-                                    Title = "Quick Purchase",
-                                    Content = item.title .. " purchased!",
-                                    Duration = 3
-                                })
-                            end
-                        elseif item.type == "bait" then
-                            local buyBait = net:FindFirstChild("RF/PurchaseBait")
-                            if buyBait then
-                                -- Buy 10x bait
-                                for i = 1, 10 do
-                                    buyBait:InvokeServer(item.id)
-                                    wait(0.1)
-                                end
-                                Fluent:Notify({
-                                    Title = "Quick Purchase",
-                                    Content = "10x Lucky Bait purchased!",
-                                    Duration = 3
-                                })
-                            end
-                        elseif item.type == "weather" then
-                            local buyWeather = net:FindFirstChild("RF/PurchaseWeatherEvent")
-                            if buyWeather then
-                                buyWeather:InvokeServer(item.name)
-                                Fluent:Notify({
-                                    Title = "Quick Purchase",
-                                    Content = item.name .. " weather purchased!",
-                                    Duration = 3
-                                })
-                            end
-                        end
-                    end
-                end)
-                
-                if not success then
-                    warn("Quick purchase error: " .. tostring(error))
-                    Fluent:Notify({
-                        Title = "Purchase Failed",
-                        Content = "Quick purchase failed!",
-                        Duration = 3
-                    })
-                end
-            end
-        })
-    end
 end
 do
     local settingTab = Tabs.Settings
@@ -2396,12 +1753,6 @@ do
                         effect.Enabled = false
                     end
                 end
-                
-                Fluent:Notify({
-                    Title = "FPS Boost Applied",
-                    Content = "Graphics optimized for better performance",
-                    Duration = 3
-                })
             end)
             
             if not success then
@@ -2430,14 +1781,7 @@ do
                         effect.Enabled = true
                     end
                 end
-                
-                Fluent:Notify({
-                    Title = "Graphics Restored",
-                    Content = "Original graphics settings restored",
-                    Duration = 3
-                })
             end)
-            
             if not success then
                 warn("Reset FPS Boost error: " .. tostring(error))
             end
@@ -2460,17 +1804,6 @@ do
             
             if not success then
                 warn("Rejoin failed: " .. tostring(err))
-                Fluent:Notify({
-                    Title = "Rejoin Failed",
-                    Content = "Could not rejoin server",
-                    Duration = 3
-                })
-            else
-                Fluent:Notify({
-                    Title = "Rejoining...",
-                    Content = "Rejoining current server",
-                    Duration = 2
-                })
             end
         end
     })
@@ -2532,17 +1865,6 @@ do
             
             if Value then
                 local serverType = reconnectData.JobId ~= "" and "Same Server First" or "Random Server"
-                Fluent:Notify({
-                    Title = "Auto Reconnect Enabled",
-                    Content = "Will reconnect to: " .. serverType,
-                    Duration = 3
-                })
-            else
-                Fluent:Notify({
-                    Title = "Auto Reconnect Disabled",
-                    Content = "Auto reconnect turned off",
-                    Duration = 3
-                })
             end
         end
     })
@@ -2712,15 +2034,13 @@ do
             reconnectData.JobId ~= "" and reconnectData.JobId or "N/A"
         )
     })
-    
-    -- Update player count periodically
     spawn(function()
         while wait(5) do
             local currentPlayers = #game.Players:GetPlayers()
             if currentPlayers ~= playerCount then
                 playerCount = currentPlayers
                 serverInfoParagraph:Set({
-                    Title = "Current Server Details",
+                    Title = "Server Details",
                     Content = string.format("Server Type: %s\nPlayers Online: %d\nPlace ID: %d\nJob ID: %s", 
                         serverType, 
                         playerCount, 
@@ -2731,29 +2051,6 @@ do
             end
         end
     end)
-    
-    settingTab:AddSection("Configuration")
-    
-    local configSaveButton = settingTab:AddButton({
-        Title = "Save Configuration",
-        Description = "Manually save current settings",
-        Callback = function()
-            local success, message = AutoConfig:ManualSave()
-            if success then
-                Fluent:Notify({
-                    Title = "Configuration Saved",
-                    Content = "Settings saved successfully",
-                    Duration = 3
-                })
-            else
-                Fluent:Notify({
-                    Title = "Save Failed",
-                    Content = "Could not save configuration",
-                    Duration = 3
-                })
-            end
-        end
-    })
 end
 do
     local webhookTab = Tabs.Webhook
@@ -2791,11 +2088,6 @@ do
             httpRetryCount = 0
             
             if Value ~= "" then
-                Fluent:Notify({
-                    Title = "Webhook URL Set",
-                    Content = "Webhook URL configured successfully",
-                    Duration = 3
-                })
             end
         end
     })
@@ -2821,6 +2113,7 @@ do
         },
         Multi = true,
         Default = {},
+        Searchable = true,
         Callback = function(Values)
             -- Reset all fish to false first
             for fishId, _ in pairs(specificFishEnabled) do
@@ -2859,11 +2152,6 @@ do
                         fishList = fishList .. ", "
                     end
                 end
-                Fluent:Notify({
-                    Title = "Fish Selected",
-                    Content = selectedCount .. " fish types selected",
-                    Duration = 3
-                })
             end
         end
     })
@@ -3130,21 +2418,9 @@ do
     local function startInventoryMonitoring()
         httpRetryCount = 0
         if startReplionMonitoring() then
-            Fluent:Notify({
-                Title = "Webhook Active",
-                Content = "Advanced inventory monitoring started",
-                Duration = 3
-            })
             return
         end
-        
-        Fluent:Notify({
-            Title = "Webhook Active",
-            Content = "Basic monitoring started",
-            Duration = 3
-        })
     end
-    
     local function stopInventoryMonitoring()
         if inventoryConnection then
             inventoryConnection:Disconnect()
@@ -3152,15 +2428,7 @@ do
         end
         lastInventoryState = {}
         httpRetryCount = 0
-        
-        Fluent:Notify({
-            Title = "Webhook Disabled",
-            Content = "Fish tracking stopped",
-            Duration = 3
-        })
     end
-    
-    -- Webhook Controls Section
     webhookTab:AddSection("Webhook Controls")
     
     local webhookToggle = webhookTab:AddToggle("WebhookToggle", {
@@ -3173,29 +2441,16 @@ do
             if Value then
                 if webhookURL == "" then
                     Options.WebhookToggle:SetValue(false)
-                    Fluent:Notify({
-                        Title = "Webhook URL Required",
-                        Content = "Please enter a webhook URL first",
-                        Duration = 5
-                    })
                     return
                 end
-                
                 local selectedCount = 0
                 for _, enabled in pairs(specificFishEnabled) do
                     if enabled then selectedCount = selectedCount + 1 end
                 end
-                
                 if selectedCount == 0 then
                     Options.WebhookToggle:SetValue(false)
-                    Fluent:Notify({
-                        Title = "No Fish Selected",
-                        Content = "Please select fish to track first",
-                        Duration = 5
-                    })
                     return
                 end
-                
                 startInventoryMonitoring()
             else
                 stopInventoryMonitoring()
@@ -3208,11 +2463,6 @@ do
         Description = "Send a test message to verify webhook",
         Callback = function()
             if webhookURL == "" then
-                Fluent:Notify({
-                    Title = "No Webhook URL",
-                    Content = "Please enter webhook URL first",
-                    Duration = 3
-                })
                 return
             end
             local testData = {
@@ -3224,12 +2474,6 @@ do
                 Probability = {Chance = 0.05}
             }
             sendWebhook("Test Fish", testData, 3.5, false, nil)
-            
-            Fluent:Notify({
-                Title = "Test Sent",
-                Content = "Check your Discord channel",
-                Duration = 3
-            })
         end
     })
     
@@ -3241,12 +2485,6 @@ do
             for fishId, _ in pairs(specificFishEnabled) do
                 specificFishEnabled[fishId] = false
             end
-            
-            Fluent:Notify({
-                Title = "Fish Deselected",
-                Content = "All fish selections cleared",
-                Duration = 3
-            })
         end
     })
     
@@ -3261,12 +2499,6 @@ do
             Options.WebhookURL:SetValue("")
             httpRetryCount = 0
             lastInventoryState = {}
-            
-            Fluent:Notify({
-                Title = "Webhook Reset",
-                Content = "All webhook settings cleared",
-                Duration = 3
-            })
         end
     })
     
