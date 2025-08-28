@@ -1065,24 +1065,13 @@ local function triggerPerfectClick()
     return success
 end
 
--- Enhanced hook method using AutoFishing integration
+-- Fixed hook method without custom properties
+local hookedRemoteFunctions = {}
+
 local function enableAutoFishingHook()
     spawn(function()
         while isAutoPerfectV2Active do
             local success, error = pcall(function()
-                -- First, ensure AutoFishing is enabled in game data
-                local Replion = require(game:GetService("ReplicatedStorage").Packages.Replion)
-                local dataReplion = Replion.Client:WaitReplion("Data")
-                
-                if not dataReplion:GetExpect("AutoFishing") then
-                    -- Enable AutoFishing if not already enabled
-                    local Net = require(game:GetService("ReplicatedStorage").Packages.Net)
-                    local updateAutoFishing = Net:RemoteFunction("UpdateAutoFishingState")
-                    updateAutoFishing:InvokeServer(true)
-                    task.wait(0.5)
-                end
-                
-                -- Hook ChargeFishingRod with perfect values
                 local ReplicatedStorage = game:GetService("ReplicatedStorage")
                 local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
                 
@@ -1090,40 +1079,37 @@ local function enableAutoFishingHook()
                     local net = netFolder.net
                     local chargeFishingRod = net:FindFirstChild("RF/ChargeFishingRod")
                     
-                    if chargeFishingRod and not chargeFishingRod._hookedByV2 then
-                        chargeFishingRod._originalInvokeServer = chargeFishingRod.InvokeServer
-                        chargeFishingRod._hookedByV2 = true
+                    if chargeFishingRod and not hookedRemoteFunctions[chargeFishingRod] then
+                        -- Store original function in our tracking table
+                        hookedRemoteFunctions[chargeFishingRod] = {
+                            originalInvokeServer = chargeFishingRod.InvokeServer,
+                            isHooked = true
+                        }
                         
+                        -- Override InvokeServer
                         chargeFishingRod.InvokeServer = function(self, ...)
                             local currentTime = tick()
                             
                             if (currentTime - lastChargeTime) > 2 then
                                 lastChargeTime = currentTime
                                 
-                                -- Always use perfect power value for AutoFishing
-                                local result = chargeFishingRod._originalInvokeServer(self, 9999999999)
+                                -- Use perfect power value (same as V1)
+                                local originalFunc = hookedRemoteFunctions[chargeFishingRod].originalInvokeServer
+                                local result = originalFunc(self, 9999999999)
                                 
-                                -- Auto-trigger perfect release after charge
+                                -- Trigger perfect click after charge
                                 if not clickTriggered then
                                     clickTriggered = true
                                     spawn(function()
-                                        task.wait(0.3) -- Wait for charge to process
+                                        task.wait(0.3)
                                         
-                                        -- Try multiple click methods for reliability
                                         local confirmFishingInput = _G.confirmFishingInput
                                         if confirmFishingInput then
                                             confirmFishingInput()
-                                            print("[AUTO PERFECT V2] Perfect release via confirmFishingInput")
+                                            print("[AUTO PERFECT V2] Perfect release triggered")
                                         else
-                                            -- Fallback: simulate perfect timing click
-                                            local UserInputService = game:GetService("UserInputService")
-                                            local VirtualUser = game:GetService("VirtualUser")
-                                            
-                                            -- Try VirtualUser method (anti-AFK compatible)
-                                            VirtualUser:CaptureController()
-                                            VirtualUser:ClickButton1(Vector2.new())
-                                            
-                                            print("[AUTO PERFECT V2] Perfect release via VirtualUser")
+                                            -- Fallback method
+                                            triggerPerfectClick()
                                         end
                                         
                                         task.wait(3)
@@ -1133,8 +1119,9 @@ local function enableAutoFishingHook()
                                 
                                 return result
                             else
-                                print("[AUTO PERFECT V2] Blocked duplicate charge - using perfect value")
-                                return chargeFishingRod._originalInvokeServer(self, 9999999999)
+                                -- Allow call but with perfect value
+                                local originalFunc = hookedRemoteFunctions[chargeFishingRod].originalInvokeServer
+                                return originalFunc(self, 9999999999)
                             end
                         end
                     end
@@ -1142,7 +1129,7 @@ local function enableAutoFishingHook()
             end)
             
             if not success then
-                warn("[AUTO PERFECT V2] AutoFishing hook error: " .. tostring(error))
+                warn("[AUTO PERFECT V2] Hook error: " .. tostring(error))
             end
             
             task.wait(1)
@@ -1232,7 +1219,7 @@ local function enableSimpleScreenClick()
     end)
 end
 
--- Disable function
+-- Enhanced disable function
 local function disableOverridePerfect()
     local success, error = pcall(function()
         clickTriggered = false
@@ -1244,18 +1231,11 @@ local function disableOverridePerfect()
             originalGetPower = nil
         end
         
-        -- Restore original InvokeServer
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
-        
-        if netFolder and netFolder:FindFirstChild("net") then
-            local net = netFolder.net
-            local chargeFishingRod = net:FindFirstChild("RF/ChargeFishingRod")
-            
-            if chargeFishingRod and chargeFishingRod._originalInvokeServer then
-                chargeFishingRod.InvokeServer = chargeFishingRod._originalInvokeServer
-                chargeFishingRod._originalInvokeServer = nil
-                chargeFishingRod._hookedByV2 = nil
+        -- Restore hooked RemoteFunctions
+        for remoteFunc, hookData in pairs(hookedRemoteFunctions) do
+            if hookData.isHooked then
+                remoteFunc.InvokeServer = hookData.originalInvokeServer
+                hookedRemoteFunctions[remoteFunc] = nil
             end
         end
         
