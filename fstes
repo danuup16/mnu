@@ -1,3 +1,4 @@
+if game.PlaceId == 121864768012064 then
 local Fluent = loadstring(game:HttpGet("https://raw.githubusercontent.com/danuup16/mnbru/refs/heads/main/mnu"))()
 local HttpService = game:GetService("HttpService")
 local AutoConfig = {} do
@@ -809,7 +810,7 @@ end
 Tabs.Fishing:AddSection("Auto Fishing V1")
 -- FISHING DELAY SLIDER
 local FishingDelaySlider = Tabs.Fishing:AddSlider("FishingDelay", {
-    Title = "Fishing Delay",
+    Title = "Fishing Delay V1",
     Description = "Adjust delay between fishing cycles, Default 2.3",
     Default = 2.3,
     Min = 0.5,
@@ -819,7 +820,6 @@ local FishingDelaySlider = Tabs.Fishing:AddSlider("FishingDelay", {
         fishingDelay = Value
     end
 })
-
 -- FISHING ELEMENTS
 local AutoFishingToggle = Tabs.Fishing:AddToggle("AutoFishing", {
    Title = "Auto Fishing V1",
@@ -1061,7 +1061,7 @@ local autoFishV2Toggle = Tabs.Fishing:AddToggle("AutoFishingV2", {
 
 -- Fishing Delay Slider for V2
 local fishingV2DelaySlider = Tabs.Fishing:AddSlider("FishingV2Delay", {
-    Title = "V2 Fishing Delay",
+    Title = "Fishing Delay V2",
     Description = "Delay between fishing cycles (seconds)",
     Default = 3,
     Min = 1,
@@ -1121,7 +1121,46 @@ local autoClickV2Toggle = Tabs.Fishing:AddToggle("AutoClickV2", {
         end
     end
 })
+
 Tabs.Fishing:AddSection("Auto Farm V1")
+-- Cek Semua Ikan
+local showFishToggle = Tabs.Fishing:AddToggle("CheckFish", {
+    Title = "Cek Semua Ikan",
+    Description = "Lihat semua ikan beserta tier/rarity-nya",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
+            local TierUtility = require(ReplicatedStorage.Shared.TierUtility)
+
+            local fishes = ItemUtility:GetFishes()
+            if not fishes or #fishes == 0 then
+                Fluent:Notify({
+                    Title = "Fish Viewer",
+                    Content = "Tidak ada data ikan!",
+                    Duration = 5
+                })
+                return
+            end
+
+            local msg = ""
+            for _, fish in ipairs(fishes) do
+                local data = fish.Data
+                local tierData = TierUtility:GetTier(data.Tier)
+                local tierName = tierData and tierData.Name or "Unknown"
+                msg = msg .. data.Name .. " - " .. tierName .. "\n"
+            end
+
+            Fluent:Notify({
+                Title = "Daftar Ikan",
+                Content = msg,
+                Duration = 10
+            })
+        end
+    end
+})
+
 -- AUTO FARM V1 SECTION
 local selectedFarmLocation = nil
 local isAutoFarmActive = false
@@ -1179,6 +1218,9 @@ local function startAutoFarm()
                local distance = (currentPos - targetPos).Magnitude
                if distance > 50 then
                   player.Character.HumanoidRootPart.CFrame = targetCFrame
+                  Options.AutoFishing:SetValue(false)
+                    Wait(1)
+                    Options.AutoFishing:SetValue(true)
                   wait(1)
                end
             end
@@ -1220,10 +1262,10 @@ Tabs.Fishing:AddSection("Auto Farm V2")
 
 -- Input untuk menyimpan checkpoint sebagai text coordinate
 local CheckpointInput = Tabs.Fishing:AddInput("CheckpointInput", {
-    Title = "Saved Checkpoint",
-    Description = "Your saved farming position (auto-filled when you set checkpoint)",
+    Title = "Dont' touch this!",
+    Description = "Checkpoint Status",
     Default = "",
-    Placeholder = "No checkpoint saved - use Set Checkpoint button",
+    Placeholder = "......",
     Numeric = false,
     Finished = false,
     Callback = function(Value)
@@ -1253,7 +1295,7 @@ local function cframeToString(cframe)
 end
 
 local SetCheckpointButton = Tabs.Fishing:AddButton({
-    Title = "Auto Farm V2 - Set Checkpoint",
+    Title = "Set Location",
     Description = "Save current position as farming location",
     Callback = function()
         local player = game.Players.LocalPlayer
@@ -1270,14 +1312,19 @@ local SetCheckpointButton = Tabs.Fishing:AddButton({
         end
     end,
 })
-
+local ClearCheckpointButton = Tabs.Fishing:AddButton({
+    Title = "Clear Location",
+    Description = "Remove saved position",
+    Callback = function()
+        checkpointPosition = nil
+        hasCheckpoint = false
+        if isAutoFarmV2Active then
+            Options.AutoFarmV2:SetValue(false)
+        end
+        Options.CheckpointInput:SetValue("")
+    end,
+})
 local function startAutoFarmV2()
-    -- Gunakan checkpoint yang tersimpan
-    if not hasCheckpoint then
-        print("No checkpoint set! Please set a checkpoint first.")
-        return false
-    end
-    
     local player = game.Players.LocalPlayer
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
         return false
@@ -1297,7 +1344,11 @@ local function startAutoFarmV2()
                 local distance = (currentPos - checkpointPos).Magnitude
                 
                 if distance > 50 then
+                    
                     player.Character.HumanoidRootPart.CFrame = checkpointPosition
+                    Options.AutoFishing:SetValue(false)
+                    Wait(1)
+                    Options.AutoFishing:SetValue(true)
                     wait(1)
                 end
             end
@@ -1314,7 +1365,7 @@ end
 
 local AutoFarmV2Toggle = Tabs.Fishing:AddToggle("AutoFarmV2", {
     Title = "Start Auto Farm V2",
-    Description = "Farm at your saved checkpoint location",
+    Description = "Farm at your saved location",
     Default = false,
     Callback = function(Value)
         if Value then
@@ -1333,62 +1384,33 @@ local AutoFarmV2Toggle = Tabs.Fishing:AddToggle("AutoFarmV2", {
     end,
 })
 
-local ClearCheckpointButton = Tabs.Fishing:AddButton({
-    Title = "Auto Farm V2 - Clear Checkpoint",
-    Description = "Remove saved checkpoint position",
-    Callback = function()
-        checkpointPosition = nil
-        hasCheckpoint = false
-        
-        -- Stop auto farm jika sedang aktif
-        if isAutoFarmV2Active then
+spawn(function()
+    wait(5) -- tunggu config dan checkpoint input benar2 loaded
+    if Options.AutoFarmV2 and Options.AutoFarmV2.Value == true then
+        if hasCheckpoint and checkpointPosition then
+            Options.AutoFarmV2:SetValue(false)
+            wait(3)
+            Options.AutoFarmV2:SetValue(true)
+        else
             Options.AutoFarmV2:SetValue(false)
         end
-        
-        -- Clear Input field
-        Options.CheckpointInput:SetValue("")
-        
-        print("Checkpoint cleared!")
-    end,
-})
+    end
+end)
 
-local CheckpointInfoButton = Tabs.Fishing:AddButton({
-    Title = "Auto Farm V2 - Checkpoint Info",
-    Description = "Show saved checkpoint coordinates",
-    Callback = function()
-        if hasCheckpoint and checkpointPosition then
-            local pos = checkpointPosition.Position
-            local infoText = string.format("X: %.1f, Y: %.1f, Z: %.1f", pos.X, pos.Y, pos.Z)
-            print("Saved Checkpoint Position: " .. infoText)
-            print("Status: Checkpoint is saved and will persist between sessions")
-        else
-            print("No checkpoint set")
-            print("Use 'Set Checkpoint' to save your current position")
-        end
-    end,
-})
 
--- Load checkpoint saat script dimulai (setelah config loaded)
 spawn(function()
-    wait(1) -- Wait untuk config loading selesai
-    
-    -- Load checkpoint dari Input field jika ada
+    wait(3) -- Wait untuk config loading selesai
     local inputValue = Options.CheckpointInput and Options.CheckpointInput.Value or ""
     if inputValue ~= "" then
         local coords = {}
         for num in inputValue:gmatch("([%-%d%.]+)") do
             table.insert(coords, tonumber(num))
         end
-        
         if #coords >= 12 then
             checkpointPosition = CFrame.new(unpack(coords))
             hasCheckpoint = true
-            print("Checkpoint loaded from previous session!")
-            
-            -- Show info checkpoint yang di-load
             local pos = checkpointPosition.Position
             local infoText = string.format("X: %.1f, Y: %.1f, Z: %.1f", pos.X, pos.Y, pos.Z)
-            print("Loaded Checkpoint Position: " .. infoText)
         end
     end
 end)
@@ -1840,22 +1862,22 @@ do
             end
         end
     })
-    local copycords = teleportTab:AddButton({
-        Title = "Copy Coords",
-        Description = "copy coords",
-        Callback = function()
-                    local player = game.Players.LocalPlayer
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local pos = player.Character.HumanoidRootPart.CFrame
-            -- Format ke string
-            local coordsString = string.format(
-                "CFrame.new(%.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f)",
-                pos:GetComponents()
-            )
-            setclipboard(coordsString)
-        end
-        end
-    })
+    -- local copycords = teleportTab:AddButton({
+    --     Title = "Copy Coords",
+    --     Description = "copy coords",
+    --     Callback = function()
+    --                 local player = game.Players.LocalPlayer
+    --     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+    --         local pos = player.Character.HumanoidRootPart.CFrame
+    --         -- Format ke string
+    --         local coordsString = string.format(
+    --             "CFrame.new(%.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f)",
+    --             pos:GetComponents()
+    --         )
+    --         setclipboard(coordsString)
+    --     end
+    --     end
+    -- })
 end
 
 do
@@ -2129,6 +2151,37 @@ do
             end
         end
     })
+        local clearConfigButton = settingTab:AddButton({
+        Title = "Clear Config",
+        Description = "Remove Settings",
+        Callback = function()
+            local filePath = AutoConfig:GetFilePath()
+            if isfile(filePath) then
+                local success, err = pcall(function()
+                    delfile(filePath)
+                end)
+                if success then
+                    Fluent:Notify({
+                        Title = "Settings",
+                        Content = "Success.",
+                        Duration = 5
+                    })
+                else
+                    Fluent:Notify({
+                        Title = "Settings",
+                        Content = "Error",
+                        Duration = 5
+                    })
+                end
+            else
+                Fluent:Notify({
+                    Title = "Settings",
+                    Content = "No configuration found.",
+                    Duration = 5
+                })
+            end
+        end
+    })
     
     -- Server Management Section
     settingTab:AddSection("Server Management")
@@ -2359,11 +2412,8 @@ do
             game.Players.LocalPlayer
         )
     end
-    
-    -- Additional Settings Section
+
     settingTab:AddSection("Server Information")
-    
-    -- Server Info Paragraph (auto-display)
     local serverType = reconnectData.JobId ~= "" and "Private/VIP Server" or "Public Server"
     local playerCount = #game.Players:GetPlayers()
     
@@ -2844,6 +2894,7 @@ do
         end
     })
     
+end
 end
 Window:SelectTab(1)
 AutoConfig:Initialize(Fluent)
