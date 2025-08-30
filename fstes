@@ -1015,7 +1015,7 @@ local function performNaturalFishingCycle()
 end
 
 -- Auto Fishing V2 Toggle - Pure Natural Method
-local autoFishV2Toggle = fishTab:AddToggle("AutoFishingV2", {
+local autoFishV2Toggle = Tabs.Fishing:AddToggle("AutoFishingV2", {
     Title = "Auto Fishing V2",
     Description = "Natural fishing automation using game systems",
     Default = false,
@@ -1066,7 +1066,7 @@ local autoFishV2Toggle = fishTab:AddToggle("AutoFishingV2", {
 })
 
 -- Fishing Delay Slider for V2
-local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
+local fishingV2DelaySlider = Tabs.Fishing:AddSlider("FishingV2Delay", {
     Title = "V2 Fishing Delay",
     Description = "Delay between fishing cycles (seconds)",
     Default = 3,
@@ -1081,7 +1081,7 @@ local fishingV2DelaySlider = fishTab:AddSlider("FishingV2Delay", {
 -- Auto Click Enhancement for V2
 local isAutoClickV2Active = false
 
-local autoClickV2Toggle = fishTab:AddToggle("AutoClickV2", {
+local autoClickV2Toggle = Tabs.Fishing:AddToggle("AutoClickV2", {
     Title = "Enhanced Auto Click",
     Description = "Better minigame clicking for V2",
     Default = false,
@@ -1129,7 +1129,7 @@ local autoClickV2Toggle = fishTab:AddToggle("AutoClickV2", {
 })
 
 -- Debug V2 System
-local debugV2Button = fishTab:AddButton({
+local debugV2Button = Tabs.Fishing:AddButton({
     Title = "Debug V2 System",
     Description = "Check Auto Fishing V2 status",
     Callback = function()
@@ -1299,7 +1299,7 @@ local function enableTimingPerfect()
 end
 
 -- Auto Perfect V2 Toggle (Improved)
-local autoPerfectV2Toggle = fishTab:AddToggle("AutoPerfectV2", {
+local autoPerfectV2Toggle = Tabs.Fishing:AddToggle("AutoPerfectV2", {
     Title = "Auto Perfect V2",
     Description = "Enhanced perfect fishing using controller integration",
     Default = false,
@@ -1345,7 +1345,7 @@ local autoPerfectV2Toggle = fishTab:AddToggle("AutoPerfectV2", {
 })
 
 -- Perfect V2 Method Selector
-local perfectMethodDropdown = fishTab:AddDropdown("PerfectV2Method", {
+local perfectMethodDropdown = Tabs.Fishing:AddDropdown("PerfectV2Method", {
     Title = "Perfect V2 Method",
     Description = "Choose the perfect fishing method",
     Values = {"Timing", "Override"},
@@ -1364,7 +1364,7 @@ local perfectMethodDropdown = fishTab:AddDropdown("PerfectV2Method", {
 })
 
 -- V2 Perfect Info
-local perfectV2InfoParagraph = fishTab:AddParagraph({
+local perfectV2InfoParagraph = Tabs.Fishing:AddParagraph({
     Title = "Auto Perfect V2 Info",
     Content = "Timing Method: Manipulates charge UI for better timing. Override Method: Attempts to override power calculation. For guaranteed perfect results, use V1 Auto Perfect above."
 })
@@ -1372,7 +1372,7 @@ local perfectV2InfoParagraph = fishTab:AddParagraph({
 -- Auto Complete Minigame V2
 local isAutoCompleteV2Active = false
 
-local autoCompleteV2Toggle = fishTab:AddToggle("AutoCompleteV2", {
+local autoCompleteV2Toggle = Tabs.Fishing:AddToggle("AutoCompleteV2", {
     Title = "Auto Complete V2",
     Description = "Automatically complete fishing minigames",
     Default = false,
@@ -1407,7 +1407,7 @@ local autoCompleteV2Toggle = fishTab:AddToggle("AutoCompleteV2", {
 })
 
 -- Debug Info Button
-local debugV2Button = fishTab:AddButton({
+local debugV2Button = Tabs.Fishing:AddButton({
     Title = "Debug V2 System",
     Description = "Check Auto Fishing V2 status",
     Callback = function()
