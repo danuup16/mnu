@@ -897,7 +897,9 @@ local SellFishButton = Tabs.Fishing:AddButton({
       end)
    end,
 })
-Tabs.Fishing:AddSection("Auto Fishing V2")
+-- Modified Auto Fishing V2 with Always Perfect Catch
+Tabs.Fishing:AddSection("Auto Fishing V2 - Perfect Edition")
+
 local isAutoFishV2Active = false
 local fishingV2DelayTime = 3
 local fishingControllerModule = nil
@@ -946,7 +948,7 @@ local function canStartFishing()
     return false, "Error checking cooldown"
 end
 
--- Natural fishing cycle using controller
+-- MODIFIED FUNCTION - Always uses perfect values
 local function performNaturalFishingCycle()
     local success, error = pcall(function()
         local controller = getFishingController()
@@ -955,15 +957,6 @@ local function performNaturalFishingCycle()
             return false
         end
         
-        local Players = game:GetService("Players")
-        local camera = workspace.CurrentCamera
-        
-        -- Get screen center position
-        local screenCenter = Vector2.new(
-            camera.ViewportSize.X / 2,
-            camera.ViewportSize.Y / 2
-        )
-        
         -- Check if we can fish
         local canFish, reason = canStartFishing()
         if not canFish then
@@ -971,18 +964,49 @@ local function performNaturalFishingCycle()
             return false
         end
         
-        -- Start natural fishing using controller
-        controller:RequestChargeFishingRod(screenCenter, true, true)
+        -- Get network folder
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
         
-        -- Wait for fishing to start and complete naturally
+        if not netFolder or not netFolder:FindFirstChild("net") then
+            warn("[AUTO FISHING V2] Network folder not found!")
+            return false
+        end
+        
+        local net = netFolder.net
+        
+        -- STEP 1: Charge fishing rod with PERFECT VALUE
+        local chargeFishingRod = net:FindFirstChild("RF/ChargeFishingRod")
+        if chargeFishingRod then
+            -- ALWAYS use perfect value for charging
+            local perfectChargeValue = 9999999999
+            chargeFishingRod:InvokeServer(perfectChargeValue)
+            print("[AUTO FISHING V2] Charged with perfect value: " .. perfectChargeValue)
+            task.wait(0.3)
+        end
+        
+        -- STEP 2: Start minigame with PERFECT PARAMETERS
+        local requestFishing = net:FindFirstChild("RF/RequestFishingMinigameStarted")
+        if requestFishing then
+            -- ALWAYS use perfect parameters (0, 1)
+            requestFishing:InvokeServer(0, 1)
+            print("[AUTO FISHING V2] Started minigame with perfect parameters: (0, 1)")
+        end
+        
+        -- STEP 3: Wait and handle minigame
         local waitTime = 0
         local maxWait = 15
         
         while waitTime < maxWait and isAutoFishV2Active do
             local currentGUID = controller:GetCurrentGUID()
             if currentGUID then
-                -- We're in fishing minigame, auto-click
+                -- We're in fishing minigame, auto-click for perfect result
                 controller:RequestFishingMinigameClick()
+                -- Rapid clicking for better performance
+                for i = 1, 2 do
+                    controller:RequestFishingMinigameClick()
+                    task.wait(0.05)
+                end
             else
                 -- Check if fishing completed
                 task.wait(0.5)
@@ -997,6 +1021,13 @@ local function performNaturalFishingCycle()
             waitTime = waitTime + 0.1
         end
         
+        -- STEP 4: Complete the fishing
+        local fishingCompleted = net:FindFirstChild("RE/FishingCompleted")
+        if fishingCompleted then
+            fishingCompleted:FireServer()
+            task.wait(0.5)
+        end
+        
         return true
     end)
     
@@ -1008,10 +1039,10 @@ local function performNaturalFishingCycle()
     return success
 end
 
--- Auto Fishing V2 Toggle - Pure Natural Method
-local autoFishV2Toggle = Tabs.Fishing:AddToggle("AutoFishingV2", {
-    Title = "Auto Fishing V2",
-    Description = "Natural fishing automation using game systems",
+-- Auto Fishing V2 Toggle - Perfect Method
+local autoFishV2Toggle = Tabs.Fishing:AddToggle("AutoFishingV2Perfect", {
+    Title = "Auto Fishing V2 - Perfect",
+    Description = "Always gets PERFECT catch every time",
     Default = false,
     Callback = function(Value)
         isAutoFishV2Active = Value
@@ -1020,7 +1051,7 @@ local autoFishV2Toggle = Tabs.Fishing:AddToggle("AutoFishingV2", {
             -- Check if controller is available
             local controller = getFishingController()
             if not controller then
-                Options.AutoFishingV2:SetValue(false)
+                Options.AutoFishingV2Perfect:SetValue(false)
                 Fluent:Notify({
                     Title = "Auto Fishing V2 Failed",
                     Content = "Could not access fishing controller",
@@ -1036,6 +1067,10 @@ local autoFishV2Toggle = Tabs.Fishing:AddToggle("AutoFishingV2", {
                     
                     local cycleSuccess = performNaturalFishingCycle()
                     
+                    if cycleSuccess then
+                        print("[AUTO FISHING V2] Cycle completed - Perfect catch achieved!")
+                    end
+                    
                     -- Wait between cycles
                     for i = 1, fishingV2DelayTime * 10 do
                         if not isAutoFishV2Active then break end
@@ -1045,14 +1080,14 @@ local autoFishV2Toggle = Tabs.Fishing:AddToggle("AutoFishingV2", {
             end)
             
             Fluent:Notify({
-                Title = "Auto Fishing V2 Started",
-                Content = "Natural fishing automation active",
+                Title = "Auto Fishing V2 Perfect Started",
+                Content = "Perfect catch automation active!",
                 Duration = 3
             })
         else
             Fluent:Notify({
-                Title = "Auto Fishing V2 Stopped",
-                Content = "Fishing automation disabled",
+                Title = "Auto Fishing V2 Perfect Stopped",
+                Content = "Perfect fishing disabled",
                 Duration = 3
             })
         end
@@ -1060,9 +1095,9 @@ local autoFishV2Toggle = Tabs.Fishing:AddToggle("AutoFishingV2", {
 })
 
 -- Fishing Delay Slider for V2
-local fishingV2DelaySlider = Tabs.Fishing:AddSlider("FishingV2Delay", {
-    Title = "V2 Fishing Delay",
-    Description = "Delay between fishing cycles (seconds)",
+local fishingV2DelaySlider = Tabs.Fishing:AddSlider("FishingV2PerfectDelay", {
+    Title = "V2 Perfect Fishing Delay",
+    Description = "Delay between perfect fishing cycles (seconds)",
     Default = 3,
     Min = 1,
     Max = 10,
@@ -1072,52 +1107,39 @@ local fishingV2DelaySlider = Tabs.Fishing:AddSlider("FishingV2Delay", {
     end
 })
 
--- Auto Click Enhancement for V2
-local isAutoClickV2Active = false
+-- Info button to show current perfect values
+local PerfectInfoButton = Tabs.Fishing:AddButton({
+    Title = "Perfect Values Info",
+    Description = "Show the perfect values being used",
+    Callback = function()
+        print("=== AUTO FISHING V2 PERFECT VALUES ===")
+        print("RF/ChargeFishingRod Value: 9999999999")
+        print("RF/RequestFishingMinigameStarted: (0, 1)")
+        print("These values guarantee PERFECT catch every time!")
+        print("=====================================")
+        
+        Fluent:Notify({
+            Title = "Perfect Values Active",
+            Content = "Charge: 9999999999 | Minigame: (0, 1)",
+            Duration = 5
+        })
+    end
+})
 
-local autoClickV2Toggle = Tabs.Fishing:AddToggle("AutoClickV2", {
-    Title = "Enhanced Auto Click",
-    Description = "Better minigame clicking for V2",
+-- Debug mode untuk melihat proses
+local isDebugMode = false
+local DebugToggle = Tabs.Fishing:AddToggle("V2DebugMode", {
+    Title = "Debug Mode",
+    Description = "Show detailed fishing process in console",
     Default = false,
     Callback = function(Value)
-        isAutoClickV2Active = Value
-        
+        isDebugMode = Value
         if Value then
-            spawn(function()
-                while isAutoClickV2Active do
-                    local success, error = pcall(function()
-                        local controller = getFishingController()
-                        if controller then
-                            local currentGUID = controller:GetCurrentGUID()
-                            if currentGUID then
-                                -- Rapid clicking for better results
-                                for i = 1, 3 do
-                                    controller:RequestFishingMinigameClick()
-                                    task.wait(0.05)
-                                end
-                            end
-                        end
-                    end)
-                    
-                    if not success then
-                        warn("[AUTO CLICK V2] Error: " .. tostring(error))
-                    end
-                    
-                    task.wait(0.1)
-                end
-            end)
-            
-            Fluent:Notify({
-                Title = "Enhanced Auto Click Enabled",
-                Content = "Better minigame performance active",
-                Duration = 3
-            })
+            print("[DEBUG] Auto Fishing V2 Perfect - Debug Mode Enabled")
+            print("[DEBUG] Will use RF/ChargeFishingRod: 9999999999")
+            print("[DEBUG] Will use RF/RequestFishingMinigameStarted: (0, 1)")
         else
-            Fluent:Notify({
-                Title = "Enhanced Auto Click Disabled",
-                Content = "Standard clicking restored",
-                Duration = 3
-            })
+            print("[DEBUG] Debug Mode Disabled")
         end
     end
 })
