@@ -897,13 +897,10 @@ local SellFishButton = Tabs.Fishing:AddButton({
       end)
    end,
 })
--- Auto Fishing V2 - Hybrid Perfect System
 Tabs.Fishing:AddSection("Auto Fishing V2")
-
 local isAutoFishV2Active = false
 local fishingV2DelayTime = 3
 local fishingControllerModule = nil
-local isV2PerfectMode = true -- Toggle for perfect mode
 
 -- Function to get the FishingController module
 local function getFishingController()
@@ -949,7 +946,7 @@ local function canStartFishing()
     return false, "Error checking cooldown"
 end
 
--- Natural fishing cycle with perfect value injection
+-- Natural fishing cycle using controller
 local function performNaturalFishingCycle()
     local success, error = pcall(function()
         local controller = getFishingController()
@@ -974,31 +971,8 @@ local function performNaturalFishingCycle()
             return false
         end
         
-        -- If perfect mode is enabled, use manual perfect values
-        if isV2PerfectMode then
-            local ReplicatedStorage = game:GetService("ReplicatedStorage")
-            local netFolder = ReplicatedStorage.Packages._Index:FindFirstChild("sleitnick_net@0.2.0")
-            
-            if netFolder and netFolder:FindFirstChild("net") then
-                local net = netFolder.net
-                
-                -- Charge with perfect value
-                local chargeFishingRod = net:FindFirstChild("RF/ChargeFishingRod")
-                if chargeFishingRod then
-                    chargeFishingRod:InvokeServer(9999999999)
-                    task.wait(0.3)
-                end
-                
-                -- Start minigame with perfect parameters
-                local requestFishing = net:FindFirstChild("RF/RequestFishingMinigameStarted")
-                if requestFishing then
-                    requestFishing:InvokeServer(0, 1)
-                end
-            end
-        else
-            -- Use original controller method for natural fishing
-            controller:RequestChargeFishingRod(screenCenter, true, true)
-        end
+        -- Start natural fishing using controller
+        controller:RequestChargeFishingRod(screenCenter, true, true)
         
         -- Wait for fishing to start and complete naturally
         local waitTime = 0
@@ -1034,31 +1008,7 @@ local function performNaturalFishingCycle()
     return success
 end
 
--- Perfect Mode Toggle
-local V2PerfectModeToggle = Tabs.Fishing:AddToggle("V2PerfectMode", {
-    Title = "V2 Perfect Mode",
-    Description = "Use perfect values (9999999999 charge, 0,1 minigame)",
-    Default = true,
-    Callback = function(Value)
-        isV2PerfectMode = Value
-        
-        if Value then
-            Fluent:Notify({
-                Title = "V2 Perfect Mode ON",
-                Content = "Using perfect catch values",
-                Duration = 3
-            })
-        else
-            Fluent:Notify({
-                Title = "V2 Perfect Mode OFF", 
-                Content = "Using natural controller method",
-                Duration = 3
-            })
-        end
-    end
-})
-
--- Auto Fishing V2 Toggle
+-- Auto Fishing V2 Toggle - Pure Natural Method
 local autoFishV2Toggle = Tabs.Fishing:AddToggle("AutoFishingV2", {
     Title = "Auto Fishing V2",
     Description = "Natural fishing automation using game systems",
@@ -1094,10 +1044,9 @@ local autoFishV2Toggle = Tabs.Fishing:AddToggle("AutoFishingV2", {
                 end
             end)
             
-            local modeText = isV2PerfectMode and " (Perfect Mode)" or " (Natural Mode)"
             Fluent:Notify({
-                Title = "Auto Fishing V2 Started" .. modeText,
-                Content = "Fishing automation active",
+                Title = "Auto Fishing V2 Started",
+                Content = "Natural fishing automation active",
                 Duration = 3
             })
         else
